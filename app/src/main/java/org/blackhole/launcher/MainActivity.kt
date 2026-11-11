@@ -1,3 +1,4 @@
+
 package org.blackhole.launcher
 
 import android.app.Activity
@@ -6,206 +7,315 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
-import android.widget.*
 import android.text.Editable
 import android.text.TextWatcher
+import android.text.InputType
+import android.view.Gravity
+import android.widget.*
 
 class MainActivity : Activity() {
 
-    private val bg = Color.rgb(5, 7, 13)
-    private val cyan = Color.rgb(0, 229, 255)
-    private lateinit var appList: LinearLayout
+    private lateinit var contentLayout: LinearLayout
     private lateinit var searchBox: EditText
+
+    private val bgColor = Color.rgb(9, 12, 20)
+    private val cardColor = Color.rgb(25, 30, 43)
+    private val accentColor = Color.rgb(105, 125, 255)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.statusBarColor = bgColor
+        window.navigationBarColor = bgColor
+
         buildHome()
     }
 
-    private fun makeText(
-        value: String,
-        size: Float,
-        color: Int,
-        bold: Boolean = false
-    ): TextView {
-        return TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) setTypeface(null, Typeface.BOLD)
-        }
-    }
-
-    private fun buildHome() {
-        val scroll = ScrollView(this)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 35, 24, 24)
-            setBackgroundColor(bg)
-        }
-
-        scroll.addView(root)
-        setContentView(scroll)
-
-        root.addView(makeText("BLACKHOLE", 30f, Color.WHITE, true))
-        root.addView(makeText("LAUNCHER", 15f, cyan, true))
-
-        val clock = TextClock(this).apply {
-            format12Hour = "hh:mm a"
-            format24Hour = "HH:mm"
-            textSize = 48f
-            setTextColor(Color.WHITE)
-            setPadding(0, 25, 0, 0)
-        }
-        root.addView(clock)
-
-        val date = TextClock(this).apply {
-            format12Hour = "EEEE, dd MMMM"
-            format24Hour = "EEEE, dd MMMM"
-            textSize = 14f
-            setTextColor(Color.LTGRAY)
-        }
-        root.addView(date)
-
-        val loki = makeText("✦  LOKI AI  —  OPEN ASSISTANT", 17f, cyan, true)
-        loki.setPadding(18, 22, 18, 22)
-        loki.background = roundedBox(Color.rgb(15, 28, 40))
-        val lokiParams = LinearLayout.LayoutParams(-1, -2)
-        lokiParams.setMargins(0, 30, 0, 25)
-        root.addView(loki, lokiParams)
-        loki.setOnClickListener { showLoki() }
-
-        root.addView(makeText("YOUR APPLICATIONS", 16f, Color.WHITE, true))
-
-        searchBox = EditText(this).apply {
-            hint = "Search apps..."
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            maxLines = 1
-inputType = android.text.InputType.TYPE_CLASS_TEXT
-setPadding(16, 12, 16, 12)
-background = roundedBox(Color.rgb(25, 29, 39))
-
-        val searchParams = LinearLayout.LayoutParams(-1, -2)
-        searchParams.setMargins(0, 15, 0, 18)
-        root.addView(searchBox, searchParams)
-
-        appList = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        root.addView(appList)
-
-        searchBox.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                showApps(s?.toString() ?: "")
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        showApps("")
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     private fun roundedBox(color: Int): GradientDrawable {
         return GradientDrawable().apply {
             setColor(color)
-            cornerRadius = 22f
-            setStroke(1, cyan)
+            cornerRadius = dp(18).toFloat()
         }
     }
 
-    private fun showApps(filter: String) {
-        appList.removeAllViews()
+    private fun buildHome() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(25), dp(20), dp(15))
+            setBackgroundColor(bgColor)
+        }
 
-        val intent = Intent(Intent.ACTION_MAIN, null)
-        intent.addCategory(Intent.CATEGORY_LAUNCHER)
+        setContentView(root)
 
-        val apps = packageManager.queryIntentActivities(intent, 0)
-            .filter {
-                it.loadLabel(packageManager).toString()
-                    .contains(filter, ignoreCase = true)
+        val title = TextView(this).apply {
+            text = "BLACK HOLE"
+            textSize = 25f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.12f
+        }
+        root.addView(title)
+
+        val subtitle = TextView(this).apply {
+            text = "YOUR PERSONAL ANDROID SPACE"
+            textSize = 10f
+            setTextColor(Color.GRAY)
+            letterSpacing = 0.15f
+        }
+        root.addView(subtitle)
+
+        val clock = TextClock(this).apply {
+            format12Hour = "hh:mm a"
+            format24Hour = "HH:mm"
+            textSize = 43f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+
+        root.addView(
+            clock,
+            LinearLayout.LayoutParams(-1, dp(105))
+        )
+
+        val lokiButton = makeButton(
+            "✦  OPEN LOKI AI",
+            accentColor
+        ) {
+            showLoki()
+        }
+
+        root.addView(
+            lokiButton,
+            LinearLayout.LayoutParams(-1, dp(55)).apply {
+                bottomMargin = dp(18)
             }
+        )
+
+        searchBox = EditText(this).apply {
+            hint = "Search installed apps..."
+            setHintTextColor(Color.GRAY)
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            maxLines = 1
+            inputType = InputType.TYPE_CLASS_TEXT
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            background = roundedBox(cardColor)
+        }
+
+        root.addView(
+            searchBox,
+            LinearLayout.LayoutParams(-1, dp(52)).apply {
+                bottomMargin = dp(15)
+            }
+        )
+
+        val scrollView = ScrollView(this)
+
+        contentLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        scrollView.addView(contentLayout)
+
+        root.addView(
+            scrollView,
+            LinearLayout.LayoutParams(-1, 0, 1f)
+        )
+
+        searchBox.addTextChangedListener(object : TextWatcher {
+
+            override fun beforeTextChanged(
+                s: CharSequence?,
+                start: Int,
+                count: Int,
+                after: Int
+            ) {}
+
+            override fun onTextChanged(
+                s: CharSequence?,
+                start: Int,
+                before: Int,
+                count: Int
+            ) {
+                showApps(s?.toString() ?: "")
+            }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        showApps()
+    }
+
+    private fun makeButton(
+        label: String,
+        color: Int,
+        action: () -> Unit
+    ): TextView {
+        return TextView(this).apply {
+            text = label
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = roundedBox(color)
+
+            setOnClickListener {
+                action()
+            }
+        }
+    }
+
+    private fun showApps(query: String = "") {
+        contentLayout.removeAllViews()
+
+        val heading = TextView(this).apply {
+            text = "YOUR APPLICATIONS"
+            textSize = 13f
+            setTextColor(accentColor)
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, dp(5), 0, dp(12))
+        }
+
+        contentLayout.addView(heading)
+
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+
+        val apps = packageManager
+            .queryIntentActivities(launcherIntent, 0)
+            .distinctBy { it.activityInfo.packageName }
             .sortedBy {
                 it.loadLabel(packageManager).toString().lowercase()
             }
 
-        for (info in apps) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(14, 12, 14, 12)
-                background = roundedBox(Color.rgb(17, 21, 31))
-            }
-
-            val icon = ImageView(this).apply {
-                setImageDrawable(info.loadIcon(packageManager))
-                layoutParams = LinearLayout.LayoutParams(48, 48)
-            }
-
-            val name = makeText(
-                info.loadLabel(packageManager).toString(),
-                16f,
-                Color.WHITE,
-                true
-            )
-            name.setPadding(18, 0, 0, 0)
-
-            row.addView(icon)
-            row.addView(name)
-
-            val params = LinearLayout.LayoutParams(-1, -2)
-            params.setMargins(0, 0, 0, 10)
-            appList.addView(row, params)
-
-            row.setOnClickListener {
-                val launchIntent = packageManager
-                    .getLaunchIntentForPackage(info.activityInfo.packageName)
-                if (launchIntent != null) {
-                    startActivity(launchIntent)
-                }
-            }
+        val filteredApps = apps.filter {
+            it.loadLabel(packageManager)
+                .toString()
+                .contains(query, ignoreCase = true)
         }
 
-        if (apps.isEmpty()) {
-            appList.addView(
-                makeText("No apps found", 15f, Color.GRAY)
+        if (filteredApps.isEmpty()) {
+            val emptyText = TextView(this).apply {
+                text = "No applications found"
+                textSize = 15f
+                setTextColor(Color.LTGRAY)
+                gravity = Gravity.CENTER
+                setPadding(0, dp(30), 0, dp(30))
+            }
+
+            contentLayout.addView(emptyText)
+            return
+        }
+
+        for (app in filteredApps) {
+            val appName = app.loadLabel(packageManager).toString()
+            val packageName = app.activityInfo.packageName
+
+            val appItem = TextView(this).apply {
+                text = appName
+                textSize = 16f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(16), dp(15), dp(12), dp(15))
+                background = roundedBox(cardColor)
+
+                try {
+                    setCompoundDrawablesWithIntrinsicBounds(
+                        app.loadIcon(packageManager),
+                        null,
+                        null,
+                        null
+                    )
+                    compoundDrawablePadding = dp(15)
+                } catch (_: Exception) {
+                }
+
+                setOnClickListener {
+                    try {
+                        val launchIntent =
+                            packageManager.getLaunchIntentForPackage(packageName)
+
+                        if (launchIntent != null) {
+                            startActivity(launchIntent)
+                        } else {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "App cannot be opened",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } catch (_: Exception) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Unable to open app",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+
+            contentLayout.addView(
+                appItem,
+                LinearLayout.LayoutParams(-1, dp(65)).apply {
+                    bottomMargin = dp(10)
+                }
             )
         }
     }
 
     private fun showLoki() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        contentLayout.removeAllViews()
+
+        val title = TextView(this).apply {
+            text = "✦ LOKI AI"
+            textSize = 25f
+            setTextColor(accentColor)
+            typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(25, 25, 25, 25)
-            setBackgroundColor(bg)
+            setPadding(0, dp(30), 0, dp(25))
         }
 
-        val back = makeText("←  BACK TO HOME", 16f, cyan, true)
-        back.setPadding(0, 0, 0, 35)
-        back.setOnClickListener { buildHome() }
+        contentLayout.addView(title)
 
-        root.addView(back)
-        root.addView(makeText("✦ LOKI AI", 30f, cyan, true))
-        root.addView(
-            makeText(
-                "Your AI assistant is coming soon.",
-                16f,
-                Color.WHITE
-            )
-        )
-        root.addView(
-            makeText(
-                "Gemini AI connection will be added in a later version.",
-                13f,
-                Color.LTGRAY
-            )
+        val message = TextView(this).apply {
+            text = """
+                Hello! I am Loki.
+
+                Your personal assistant is coming soon.
+
+                Gemini AI connection is not configured yet.
+            """.trimIndent()
+
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(20), dp(25), dp(20), dp(25))
+            background = roundedBox(cardColor)
+        }
+
+        contentLayout.addView(
+            message,
+            LinearLayout.LayoutParams(-1, -2)
         )
 
-        setContentView(root)
+        val backButton = makeButton(
+            "BACK TO HOME",
+            accentColor
+        ) {
+            showApps(searchBox.text.toString())
+        }
+
+        contentLayout.addView(
+            backButton,
+            LinearLayout.LayoutParams(-1, dp(55)).apply {
+                topMargin = dp(25)
+            }
+        )
     }
 }
