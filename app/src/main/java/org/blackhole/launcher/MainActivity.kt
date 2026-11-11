@@ -85,10 +85,10 @@ class MainActivity : Activity() {
             setHintTextColor(Color.GRAY)
             setTextColor(Color.WHITE)
             textSize = 16f
-            singleLine = true
-            setPadding(16, 12, 16, 12)
-            background = roundedBox(Color.rgb(25, 29, 39))
-        }
+            maxLines = 1
+inputType = android.text.InputType.TYPE_CLASS_TEXT
+setPadding(16, 12, 16, 12)
+background = roundedBox(Color.rgb(25, 29, 39))
 
         val searchParams = LinearLayout.LayoutParams(-1, -2)
         searchParams.setMargins(0, 15, 0, 18)
