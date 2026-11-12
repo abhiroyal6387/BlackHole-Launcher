@@ -7,93 +7,95 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
-import android.widget.Button
+import android.view.View
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
 import android.widget.Toast
+import android.graphics.drawable.Drawable
 
 class MainActivity : Activity() {
 
     private lateinit var content: LinearLayout
-    private lateinit var searchBox: EditText
+
+    private val black = Color.rgb(5, 5, 7)
+    private val panel = Color.rgb(19, 20, 24)
+    private val silver = Color.rgb(220, 225, 233)
+    private val muted = Color.rgb(135, 142, 153)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = Color.rgb(8, 10, 18)
-        window.navigationBarColor = Color.rgb(8, 10, 18)
+        window.statusBarColor = black
+        window.navigationBarColor = black
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(22, 24, 22, 16)
-            setBackgroundColor(Color.rgb(8, 10, 18))
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            setBackgroundColor(black)
         }
 
         val heading = TextView(this).apply {
-            text = "BLACKHOLE"
-            textSize = 27f
-            setTextColor(Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
+            text = "B L A C K H O L E"
+            textSize = 19f
+            letterSpacing = 0.12f
             gravity = Gravity.CENTER
+            setTextColor(silver)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         }
 
         val subtitle = TextView(this).apply {
-            text = "YOUR SPACE. YOUR CONTROL."
-            textSize = 10f
-            setTextColor(Color.rgb(120, 150, 190))
+            text = "YOUR SPACE  •  YOUR CONTROL"
+            textSize = 9f
+            letterSpacing = 0.18f
             gravity = Gravity.CENTER
-            letterSpacing = 0.25f
+            setTextColor(muted)
+            setPadding(0, dp(5), 0, dp(15))
         }
 
         val clock = TextClock(this).apply {
-            format12Hour = "hh:mm a"
+            format12Hour = "hh:mm"
             format24Hour = "HH:mm"
-            textSize = 42f
-            setTextColor(Color.WHITE)
+            textSize = 53f
             gravity = Gravity.CENTER
-            setPadding(0, 25, 0, 0)
+            setTextColor(silver)
+            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+            letterSpacing = 0.03f
         }
 
         val date = TextClock(this).apply {
-            format12Hour = "EEEE, dd MMMM"
-            format24Hour = "EEEE, dd MMMM"
-            textSize = 13f
-            setTextColor(Color.LTGRAY)
+            format12Hour = "EEEE  •  dd MMMM"
+            format24Hour = "EEEE  •  dd MMMM"
+            textSize = 12f
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 20)
+            setTextColor(muted)
+            setPadding(0, 0, 0, dp(22))
         }
 
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
 
-        val scrollView = ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
             addView(content)
         }
 
-        root.addView(
-            heading,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
+        root.addView(heading)
         root.addView(subtitle)
         root.addView(clock)
         root.addView(date)
-
         root.addView(
-            scrollView,
+            scroll,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
             )
         )
 
@@ -102,153 +104,279 @@ class MainActivity : Activity() {
     }
 
     private fun showHome() {
-        content.removeAllViews()
+        animateScreen {
+            addText(content, "WELCOME BACK", 11f, muted, true)
+            addText(content, "Your world. One touch away.", 21f, silver, true)
+            addText(
+                content,
+                "A quieter, cleaner way to use your phone.",
+                12f,
+                muted
+            )
 
-        addText(content, "Welcome back", 22f, Color.WHITE, true)
-        addText(
-            content,
-            "Your Android experience, redesigned.",
-            13f,
-            Color.LTGRAY
-        )
-
-        searchBox = EditText(this).apply {
-            hint = "Search installed apps..."
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
-            textSize = 15f
-            maxLines = 1
-            setSingleLine(true)
-            setPadding(18, 12, 18, 12)
-            background = roundedBox(Color.rgb(25, 30, 43))
-        }
-
-        content.addView(
-            searchBox,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                55
-            ).apply {
-                setMargins(0, 24, 0, 12)
+            val search = EditText(this).apply {
+                hint = "Search your apps"
+                setHintTextColor(muted)
+                setTextColor(silver)
+                textSize = 14f
+                maxLines = 1
+                setSingleLine(true)
+                isFocusable = false
+                setPadding(dp(17), 0, dp(17), 0)
+                background = roundedBox(panel, 18f)
+                setOnClickListener { showApps("") }
             }
-        )
 
-        addActionButton(content, "SEARCH APPS") {
-            showApps(searchBox.text.toString())
+            content.addView(
+                search,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(54)
+                ).apply {
+                    setMargins(0, dp(24), 0, dp(14))
+                }
+            )
+
+            addButton(content, "OPEN APP DRAWER  →") {
+                showApps("")
+            }
+
+            addButton(content, "LOKI  •  AI ASSISTANT") {
+                showLoki()
+            }
+
+            addText(content, "QUICK NOTE", 10f, muted, true)
+            addText(
+                content,
+                "Your launcher is ready. Open the app drawer to explore your installed apps.",
+                12f,
+                muted
+            )
+
+            addText(
+                content,
+                "BLACKHOLE  /  VERSION 1.1",
+                9f,
+                muted
+            )
         }
-
-        addActionButton(content, "ALL INSTALLED APPS") {
-            showApps("")
-        }
-
-        addActionButton(content, "LOKI AI ASSISTANT") {
-            showLoki()
-        }
-
-        addText(
-            content,
-            "BLACKHOLE LAUNCHER  •  VERSION 1.0",
-            10f,
-            Color.rgb(100, 115, 140)
-        )
     }
 
-    private fun showApps(filter: String) {
-        content.removeAllViews()
+    private fun showApps(initialFilter: String) {
+        animateScreen {
+            addText(content, "APPLICATIONS", 22f, silver, true)
+            addText(content, "Your installed apps", 12f, muted)
 
-        addText(content, "Your Apps", 24f, Color.WHITE, true)
-        addText(content, "Tap an app to open it.", 13f, Color.LTGRAY)
+            addButton(content, "←  HOME") {
+                showHome()
+            }
 
-        addActionButton(content, "BACK TO HOME") {
-            showHome()
+            val search = EditText(this).apply {
+                hint = "Type an app name..."
+                setHintTextColor(muted)
+                setTextColor(silver)
+                textSize = 14f
+                maxLines = 1
+                setSingleLine(true)
+                setPadding(dp(16), 0, dp(16), 0)
+                background = roundedBox(panel, 16f)
+            }
+
+            content.addView(
+                search,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
+                ).apply {
+                    setMargins(0, dp(14), 0, dp(16))
+                }
+            )
+
+            val grid = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            content.addView(grid)
+
+            fun updateApps(query: String) {
+                populateApps(grid, query)
+            }
+
+            search.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(
+                    s: CharSequence?, start: Int, count: Int, after: Int
+                ) {}
+
+                override fun onTextChanged(
+                    s: CharSequence?, start: Int, before: Int, count: Int
+                ) {
+                    updateApps(s?.toString() ?: "")
+                }
+
+                override fun afterTextChanged(s: Editable?) {}
+            })
+
+            search.setText(initialFilter)
+            search.setSelection(search.text.length)
+            updateApps(initialFilter)
         }
+    }
 
-        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+    private fun populateApps(grid: LinearLayout, filter: String) {
+        grid.removeAllViews()
+
+        val intent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
 
-        val apps = packageManager
-            .queryIntentActivities(launcherIntent, 0)
+        val apps = packageManager.queryIntentActivities(intent, 0)
             .distinctBy { it.activityInfo.packageName }
+            .filter {
+                it.loadLabel(packageManager).toString()
+                    .contains(filter, ignoreCase = true)
+            }
             .sortedBy {
                 it.loadLabel(packageManager).toString().lowercase()
             }
 
-        val filteredApps = apps.filter {
-            val appName = it.loadLabel(packageManager).toString()
-            appName.contains(filter, ignoreCase = true) ||
-                it.activityInfo.packageName.contains(
-                    filter,
-                    ignoreCase = true
-                )
-        }
-
-        if (filteredApps.isEmpty()) {
-            addText(
-                content,
-                "No matching apps found.",
-                15f,
-                Color.LTGRAY
-            )
+        if (apps.isEmpty()) {
+            addText(grid, "No matching apps found.", 14f, muted)
             return
         }
 
-        for (app in filteredApps) {
-            val appName = app.loadLabel(packageManager).toString()
-            val packageName = app.activityInfo.packageName
+        apps.chunked(4).forEach { group ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.TOP
+            }
 
-            addActionButton(content, appName) {
-                try {
-                    val launchIntent =
-                        packageManager.getLaunchIntentForPackage(packageName)
+            group.forEach { info ->
+                val appName = info.loadLabel(packageManager).toString()
+                val packageName = info.activityInfo.packageName
 
-                    if (launchIntent != null) {
-                        startActivity(launchIntent)
-                    } else {
+                val tile = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(dp(3), dp(12), dp(3), dp(10))
+                    background = roundedBox(panel, 17f)
+                    isClickable = true
+                    isFocusable = true
+                }
+
+                val icon = ImageView(this).apply {
+                    setImageDrawable(info.loadIcon(packageManager))
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }
+
+                tile.addView(
+                    icon,
+                    LinearLayout.LayoutParams(dp(42), dp(42))
+                )
+
+                val label = TextView(this).apply {
+                    text = appName
+                    textSize = 10f
+                    setTextColor(silver)
+                    gravity = Gravity.CENTER
+                    maxLines = 2
+                    setPadding(0, dp(7), 0, 0)
+                }
+
+                tile.addView(
+                    label,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(34)
+                    )
+                )
+
+                tile.setOnClickListener {
+                    try {
+                        val launch = packageManager
+                            .getLaunchIntentForPackage(packageName)
+                        if (launch != null) {
+                            startActivity(launch)
+                        } else {
+                            Toast.makeText(
+                                this, "Unable to open app",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } catch (e: Exception) {
                         Toast.makeText(
-                            this,
-                            "Unable to open this app",
+                            this, "Could not open app",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(
-                        this,
-                        "Could not open app",
-                        Toast.LENGTH_SHORT
-                    ).show()
                 }
+
+                row.addView(
+                    tile,
+                    LinearLayout.LayoutParams(0, dp(105), 1f).apply {
+                        setMargins(dp(3), dp(3), dp(3), dp(7))
+                    }
+                )
             }
+
+            repeat(4 - group.size) {
+                row.addView(
+                    View(this),
+                    LinearLayout.LayoutParams(0, dp(105), 1f)
+                )
+            }
+
+            grid.addView(row)
         }
     }
 
     private fun showLoki() {
-        content.removeAllViews()
+        animateScreen {
+            addText(content, "LOKI", 32f, silver, true)
+            addText(content, "YOUR AI COMPANION", 10f, muted, true)
 
-        addText(content, "LOKI", 30f, Color.WHITE, true)
-        addText(
-            content,
-            "YOUR AI ASSISTANT",
-            11f,
-            Color.rgb(90, 180, 255)
-        )
+            addText(
+                content,
+                "Loki's screen is ready.",
+                19f,
+                silver,
+                true
+            )
 
-        addText(
-            content,
-            """
-            Hello! I am Loki.
+            addText(
+                content,
+                "Gemini AI is not connected yet. No live AI replies are available in this version.",
+                13f,
+                muted
+            )
 
-            Your personal assistant is coming soon.
+            addButton(content, "←  BACK TO HOME") {
+                showHome()
+            }
 
-            Gemini AI connection is not configured yet.
-            """.trimIndent(),
-            16f,
-            Color.LTGRAY
-        )
-
-        addActionButton(content, "BACK TO HOME") {
-            showHome()
+            addText(
+                content,
+                "AI CONNECTION  /  NOT CONFIGURED",
+                9f,
+                muted
+            )
         }
+    }
+
+    private fun animateScreen(build: () -> Unit) {
+        content.animate().cancel()
+        content.animate()
+            .alpha(0f)
+            .translationY(dp(8).toFloat())
+            .setDuration(110)
+            .withEndAction {
+                content.removeAllViews()
+                build()
+                content.alpha = 0f
+                content.translationY = dp(10).toFloat()
+                content.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(230)
+                    .start()
+            }
+            .start()
     }
 
     private fun addText(
@@ -258,58 +386,57 @@ class MainActivity : Activity() {
         color: Int,
         bold: Boolean = false
     ) {
-        val textView = TextView(this).apply {
+        val view = TextView(this).apply {
             text = message
             textSize = size
             setTextColor(color)
-            setPadding(4, 12, 4, 12)
-
+            setPadding(dp(3), dp(9), dp(3), dp(5))
             if (bold) {
-                typeface = Typeface.DEFAULT_BOLD
+                typeface = Typeface.create(
+                    "sans-serif-medium", Typeface.NORMAL
+                )
             }
         }
-
-        parent.addView(
-            textView,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
+        parent.addView(view)
     }
 
-    private fun addActionButton(
+    private fun addButton(
         parent: LinearLayout,
         label: String,
         action: () -> Unit
     ) {
-        val actionButton = Button(this).apply {
+        val button = TextView(this).apply {
             text = label
-            textSize = 14f
-            isAllCaps = false
-            setTextColor(Color.WHITE)
-            background = roundedBox(Color.rgb(25, 39, 62))
-            setPadding(12, 10, 12, 10)
-            setOnClickListener {
-                action()
-            }
+            textSize = 12f
+            letterSpacing = 0.05f
+            gravity = Gravity.CENTER
+            setTextColor(silver)
+            setPadding(dp(15), dp(16), dp(15), dp(16))
+            background = roundedBox(panel, 18f)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { action() }
         }
 
         parent.addView(
-            actionButton,
+            button,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(54)
             ).apply {
-                setMargins(0, 8, 0, 8)
+                setMargins(0, dp(7), 0, dp(7))
             }
         )
     }
 
-    private fun roundedBox(color: Int): GradientDrawable {
+    private fun roundedBox(color: Int, radius: Float): GradientDrawable {
         return GradientDrawable().apply {
             setColor(color)
-            cornerRadius = 22f
+            cornerRadius = dp(radius.toInt()).toFloat()
+            setStroke(dp(1), Color.rgb(39, 41, 47))
         }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 }
