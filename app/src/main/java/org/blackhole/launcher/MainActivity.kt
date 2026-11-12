@@ -24,6 +24,13 @@ class MainActivity : Activity() {
 
     private lateinit var content: LinearLayout
 
+    private lateinit var lokiMessagesView: LinearLayout
+    private lateinit var lokiInput: EditText
+    private lateinit var lokiSendButton: TextView
+
+    private val lokiHistory = mutableListOf<LokiMessage>()
+    private var lokiBusy = false
+
     private val black = Color.rgb(5, 5, 7)
     private val panel = Color.rgb(19, 20, 24)
     private val silver = Color.rgb(220, 225, 233)
@@ -309,33 +316,167 @@ class MainActivity : Activity() {
     private fun showLoki() {
         animateScreen {
             addText(content, "LOKI", 32f, silver, true)
-            addText(content, "YOUR AI COMPANION", 10f, muted, true)
+            addText(content, "YOUR AI ASSISTANT", 10f, muted, true)
 
-            addText(
-                content,
-                "Loki's screen is ready.",
-                19f,
-                silver,
-                true
-            )
-
-            addText(
-                content,
-                "Gemini AI is not connected yet. No live AI replies are available in this version.",
-                13f,
-                muted
-            )
-
-            addButton(content, "←  BACK TO HOME") {
+            addButton(content, "<- BACK TO HOME") {
                 showHome()
             }
 
+            lokiMessagesView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(4), dp(8), dp(4), dp(8))
+            }
+
+            val chatScroll = ScrollView(this).apply {
+                isFillViewport = true
+                overScrollMode = View.OVER_SCROLL_NEVER
+                addView(lokiMessagesView)
+            }
+
+            content.addView(
+                chatScroll,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(340)
+                ).apply {
+                    setMargins(0, dp(8), 0, dp(8))
+                }
+            )
+
+            if (lokiHistory.isEmpty()) {
+                addLokiBubble(
+                    "model",
+                    "Namaste! Main Loki hoon. 😈\n\nBolo, aaj kya karna hai?"
+                )
+            } else {
+                lokiHistory.forEach {
+                    addLokiBubble(it.role, it.text)
+                }
+            }
+
+            val inputRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            lokiInput = EditText(this).apply {
+                hint = "Message Loki..."
+                setHintTextColor(muted)
+                setTextColor(silver)
+                textSize = 14f
+                maxLines = 3
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+                background = roundedBox(panel, 16f)
+            }
+
+            inputRow.addView(
+                lokiInput,
+                LinearLayout.LayoutParams(0, dp(54), 1f)
+            )
+
+            lokiSendButton = TextView(this).apply {
+                text = "SEND"
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setTextColor(silver)
+                setPadding(dp(14), 0, dp(14), 0)
+                background = roundedBox(panel, 16f)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    sendLokiMessage()
+                }
+            }
+
+            inputRow.addView(
+                lokiSendButton,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    dp(54)
+                ).apply {
+                    setMargins(dp(8), 0, 0, 0)
+                }
+            )
+
+            content.addView(inputRow)
+
             addText(
                 content,
-                "AI CONNECTION  /  NOT CONFIGURED",
+                "GEMINI AI  /  CONNECTED THROUGH TERMUX",
                 9f,
                 muted
             )
+        }
+    }
+
+    private fun addLokiBubble(role: String, message: String) {
+        val userMessage = role == "user"
+
+        val bubble = TextView(this).apply {
+            text = message
+            textSize = 14f
+            setTextColor(silver)
+            setPadding(dp(14), dp(11), dp(14), dp(11))
+            maxWidth = dp(285)
+            background = roundedBox(
+                if (userMessage) Color.rgb(34, 37, 44)
+                else panel,
+                16f
+            )
+        }
+
+        lokiMessagesView.addView(
+            bubble,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = if (userMessage) Gravity.END else Gravity.START
+                setMargins(dp(3), dp(5), dp(3), dp(5))
+            }
+        )
+    }
+
+    private fun sendLokiMessage() {
+        val message = lokiInput.text.toString().trim()
+
+        if (message.isEmpty() || lokiBusy) return
+
+        lokiBusy = true
+
+        lokiHistory.add(LokiMessage("user", message))
+        addLokiBubble("user", message)
+
+        lokiInput.setText("")
+        lokiSendButton.isEnabled = false
+        lokiSendButton.alpha = 0.5f
+
+        val thinking = TextView(this).apply {
+            text = "Loki is thinking..."
+            textSize = 12f
+            setTextColor(muted)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+
+        lokiMessagesView.addView(thinking)
+
+        LokiClient.sendMessage(lokiHistory.toList()) { reply, error ->
+
+            lokiMessagesView.removeView(thinking)
+
+            lokiBusy = false
+            lokiSendButton.isEnabled = true
+            lokiSendButton.alpha = 1f
+
+            if (reply != null) {
+                lokiHistory.add(LokiMessage("model", reply))
+                addLokiBubble("model", reply)
+            } else {
+                addLokiBubble(
+                    "model",
+                    error ?: "Loki abhi reply nahi kar pa raha."
+                )
+            }
         }
     }
 

@@ -14,3 +14,7 @@ app/build/
 local.properties
 loki-server/node_modules/
 loki-server/.env
+
+# Local backups
+app/src/main/AndroidManifest.backup.xml
+backups/
