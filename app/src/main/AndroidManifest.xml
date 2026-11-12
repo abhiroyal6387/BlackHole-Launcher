@@ -11,7 +11,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="BLACKHOLE LAUNCHER"
+        android:label="HostLoki"
         android:theme="@style/AppTheme">
 
         <activity

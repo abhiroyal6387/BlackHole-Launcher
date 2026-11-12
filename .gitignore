@@ -1,0 +1,16 @@
+
+# Local generated files
+.gradle/
+build/
+app/build/
+local.properties
+loki-server/node_modules/
+loki-server/.env
+
+# Local generated files
+.gradle/
+build/
+app/build/
+local.properties
+loki-server/node_modules/
+loki-server/.env

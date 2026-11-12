@@ -154,7 +154,7 @@ class MainActivity : Activity() {
 
             addText(
                 content,
-                "BLACKHOLE  /  VERSION 1.1",
+                "HOSTLOKI  /  VERSION 1.1",
                 9f,
                 muted
             )
@@ -241,88 +241,68 @@ class MainActivity : Activity() {
             return
         }
 
-        apps.chunked(4).forEach { group ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.TOP
-            }
+        apps.forEach { info ->
+            val appName = info.loadLabel(packageManager).toString()
+            val packageName = info.activityInfo.packageName
 
-            group.forEach { info ->
-                val appName = info.loadLabel(packageManager).toString()
-                val packageName = info.activityInfo.packageName
-
-                val tile = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    setPadding(dp(3), dp(12), dp(3), dp(10))
-                    background = roundedBox(panel, 17f)
-                    isClickable = true
-                    isFocusable = true
-                }
-
-                val icon = ImageView(this).apply {
-                    setImageDrawable(info.loadIcon(packageManager))
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                }
-
-                tile.addView(
-                    icon,
-                    LinearLayout.LayoutParams(dp(42), dp(42))
-                )
-
-                val label = TextView(this).apply {
-                    text = appName
-                    textSize = 10f
-                    setTextColor(silver)
-                    gravity = Gravity.CENTER
-                    maxLines = 2
-                    setPadding(0, dp(7), 0, 0)
-                }
-
-                tile.addView(
-                    label,
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(34)
-                    )
-                )
-
-                tile.setOnClickListener {
+            val item = TextView(this).apply {
+                text = appName
+                textSize = 15f
+                letterSpacing = 0.025f
+                gravity = Gravity.CENTER_VERTICAL
+                setTextColor(silver)
+                setPadding(dp(13), dp(15), dp(13), dp(15))
+                minHeight = dp(54)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
                     try {
                         val launch = packageManager
                             .getLaunchIntentForPackage(packageName)
+
                         if (launch != null) {
                             startActivity(launch)
                         } else {
                             Toast.makeText(
-                                this, "Unable to open app",
+                                this@MainActivity,
+                                "Unable to open app",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
                     } catch (e: Exception) {
                         Toast.makeText(
-                            this, "Could not open app",
+                            this@MainActivity,
+                            "Could not open app",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
                 }
-
-                row.addView(
-                    tile,
-                    LinearLayout.LayoutParams(0, dp(105), 1f).apply {
-                        setMargins(dp(3), dp(3), dp(3), dp(7))
-                    }
-                )
             }
 
-            repeat(4 - group.size) {
-                row.addView(
-                    View(this),
-                    LinearLayout.LayoutParams(0, dp(105), 1f)
+            grid.addView(
+                item,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+            )
+
+            val divider = View(this).apply {
+                setBackgroundColor(Color.rgb(48, 51, 58))
             }
 
-            grid.addView(row)
+            grid.addView(
+                divider,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(1)
+                ).apply {
+                    setMargins(dp(12), 0, dp(12), 0)
+                }
+            )
+
+            item.alpha = 0f
+            item.animate().alpha(1f).setDuration(180).start()
         }
     }
 
