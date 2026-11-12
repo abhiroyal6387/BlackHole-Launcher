@@ -1,6 +1,3 @@
-cd ~/BlackHole-Launcher
-
-cat > app/src/main/java/org/blackhole/launcher/MainActivity.kt <<'EOF'
 package org.blackhole.launcher
 
 import android.app.Activity
@@ -316,4 +313,3 @@ class MainActivity : Activity() {
         }
     }
 }
-EOF
