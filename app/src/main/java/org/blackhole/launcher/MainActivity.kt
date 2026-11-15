@@ -49,7 +49,7 @@ class MainActivity : Activity() {
         }
 
         val heading = TextView(this).apply {
-            text = "B L A C K H O L E"
+            text = "H O S T L O K I"
             textSize = 19f
             letterSpacing = 0.12f
             gravity = Gravity.CENTER
@@ -112,17 +112,17 @@ class MainActivity : Activity() {
 
     private fun showHome() {
         animateScreen {
-            addText(content, "WELCOME BACK", 11f, muted, true)
-            addText(content, "Your world. One touch away.", 21f, silver, true)
+            addText(content, "ARE AA GAYE", 11f, muted, true)
+            addText(content, "KHYR BURA BHI NHI HAI YE.", 21f, silver, true)
             addText(
                 content,
-                "A quieter, cleaner way to use your phone.",
+                "🫣.",
                 12f,
                 muted
             )
 
             val search = EditText(this).apply {
-                hint = "Search your apps"
+                hint = "Eshke hai hume log"
                 setHintTextColor(muted)
                 setTextColor(silver)
                 textSize = 14f
@@ -154,7 +154,7 @@ class MainActivity : Activity() {
             addText(content, "QUICK NOTE", 10f, muted, true)
             addText(
                 content,
-                "Your launcher is ready. Open the app drawer to explore your installed apps.",
+                "Aakhir kahena kya chahte ho.",
                 12f,
                 muted
             )
