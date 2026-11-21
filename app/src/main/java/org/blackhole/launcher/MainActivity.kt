@@ -51,53 +51,13 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = black
-        window.navigationBarColor = black
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(12))
-            setBackgroundColor(black)
-        }
-
-        val heading = TextView(this).apply {
-            text = "B L A C K H O L E"
-            textSize = 19f
-            letterSpacing = 0.12f
-            gravity = Gravity.CENTER
-            setTextColor(silver)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-
-        val subtitle = TextView(this).apply {
-            text = "YOUR SPACE  •  YOUR CONTROL"
-            textSize = 9f
-            letterSpacing = 0.18f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, dp(5), 0, dp(15))
-        }
-
-        val clock = TextClock(this).apply {
-            format12Hour = "hh:mm"
-            format24Hour = "HH:mm"
-            textSize = 53f
-            gravity = Gravity.CENTER
-            setTextColor(silver)
-            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-        }
-
-        val date = TextClock(this).apply {
-            format12Hour = "EEEE  •  dd MMMM"
-            format24Hour = "EEEE  •  dd MMMM"
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, 0, 0, dp(22))
-        }
+        window.statusBarColor = Color.rgb(29, 28, 57)
+        window.navigationBarColor = Color.rgb(29, 28, 57)
 
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(12), dp(18), dp(16))
+            setBackgroundColor(Color.rgb(29, 28, 57))
         }
 
         val scroll = ScrollView(this).apply {
@@ -106,18 +66,7 @@ class MainActivity : Activity() {
             addView(content)
         }
 
-        root.addView(heading)
-        root.addView(subtitle)
-        root.addView(clock)
-        root.addView(date)
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-            )
-        )
-
-        setContentView(root)
+        setContentView(scroll)
 
         LokiSecurity.startupGate(this) {
             showHome()
@@ -182,139 +131,276 @@ class MainActivity : Activity() {
 
     private fun showHome() {
         animateScreen {
-            addText(content, "HOME  /  CONTROL CENTER", 10f, neon, true)
-            addText(content, "Your space.", 27f, silver, true)
-            addText(content, "Everything you need, in one place.", 12f, muted)
+            val navy = Color.rgb(29, 28, 57)
+            val teal = Color.rgb(0, 224, 190)
+            val white = Color.rgb(239, 241, 250)
+            val soft = Color.rgb(174, 177, 199)
 
-            val search = EditText(this).apply {
-                hint = "Search installed applications..."
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 14f
-                maxLines = 1
-                setSingleLine(true)
-                isFocusable = false
-                setPadding(dp(17), 0, dp(17), 0)
-                background = roundedBox(panel, 18f)
-                setOnClickListener { showApps("") }
-            }
+            content.setBackgroundColor(navy)
 
-            content.addView(
-                search,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(54)
-                ).apply {
-                    setMargins(0, dp(18), 0, dp(16))
-                }
-            )
-
-            val lokiCard = LinearLayout(this).apply {
+            val topLine = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(17), dp(14), dp(17), dp(14))
-                background = roundedBox(Color.rgb(9, 25, 36), 22f)
-                isClickable = true
-                isFocusable = true
-                setOnClickListener { showLoki() }
             }
 
-            val lokiInfo = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+            addText(topLine, "HostLoki", 13f, white, true)
+
+            val topSpacer = View(this)
+            topLine.addView(
+                topSpacer,
+                LinearLayout.LayoutParams(0, dp(1), 1f)
+            )
+
+            val statusDot = TextView(this).apply {
+                text = "●"
+                textSize = 12f
+                setTextColor(teal)
             }
+            topLine.addView(statusDot)
+            content.addView(topLine)
 
-            addText(lokiInfo, "✦  LOKI AI", 17f, neon, true)
-            addText(lokiInfo, "Your personal assistant", 11f, muted)
-            addText(lokiInfo, "Tap to start a conversation", 10f, silver)
-
-            lokiCard.addView(
-                lokiInfo,
-                LinearLayout.LayoutParams(0, dp(76), 1f)
-            )
-
-            val lokiOrb = TextView(this).apply {
-                text = "L"
-                textSize = 24f
-                gravity = Gravity.CENTER
-                setTextColor(neon)
-                typeface = Typeface.DEFAULT_BOLD
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.rgb(8, 35, 49))
-                    setStroke(dp(2), neon)
-                }
-            }
-
-            lokiCard.addView(
-                lokiOrb,
-                LinearLayout.LayoutParams(dp(62), dp(62))
-            )
-
-            content.addView(
-                lokiCard,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(108)
-                ).apply {
-                    setMargins(0, 0, 0, dp(20))
-                }
-            )
-
-            addText(content, "QUICK ACCESS", 10f, muted, true)
-
-            val shortcuts = LinearLayout(this).apply {
+            val hero = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(22), 0, dp(8))
+            }
+
+            val leftBar = View(this).apply {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(teal, Color.rgb(0, 105, 112))
+                ).apply {
+                    cornerRadius = dp(3).toFloat()
+                }
+            }
+
+            hero.addView(
+                leftBar,
+                LinearLayout.LayoutParams(dp(42), dp(142))
+            )
+
+            val heroInfo = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
+                setPadding(dp(12), 0, dp(5), 0)
             }
 
-            fun makeShortcut(
-                title: String,
-                subtitle: String,
-                action: () -> Unit
-            ): LinearLayout {
-                return LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(14), dp(12), dp(10), dp(12))
-                    background = roundedBox(panel, 18f)
-                    isClickable = true
-                    isFocusable = true
-                    setOnClickListener { action() }
-
-                    addText(this, title, 13f, silver, true)
-                    addText(this, subtitle, 10f, muted)
-                }
+            val day = TextClock(this).apply {
+                format12Hour = "EEEE"
+                format24Hour = "EEEE"
+                textSize = 29f
+                letterSpacing = 0.12f
+                gravity = Gravity.CENTER
+                setTextColor(white)
+                typeface = Typeface.create("serif", Typeface.BOLD)
             }
 
-            shortcuts.addView(
-                makeShortcut("APPS  →", "All applications") {
-                    showApps("")
-                },
-                LinearLayout.LayoutParams(0, dp(82), 1f).apply {
-                    setMargins(0, dp(8), dp(5), 0)
-                }
-            )
+            val underline = View(this).apply {
+                setBackgroundColor(teal)
+            }
 
-            shortcuts.addView(
-                makeShortcut("SECURITY  🔒", "Hidden apps & PIN") {
-                    LokiSecurity.openSecurityMenu(this@MainActivity) {
-                        showApps("")
-                    }
-                },
-                LinearLayout.LayoutParams(0, dp(82), 1f).apply {
-                    setMargins(dp(5), dp(8), 0, 0)
-                }
-            )
+            val date = TextClock(this).apply {
+                format12Hour = "dd MMMM yyyy"
+                format24Hour = "dd MMMM yyyy"
+                textSize = 10f
+                gravity = Gravity.CENTER
+                setTextColor(soft)
+                setPadding(0, dp(7), 0, 0)
+            }
 
-            content.addView(
-                shortcuts,
+            heroInfo.addView(
+                day,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
             )
+            heroInfo.addView(
+                underline,
+                LinearLayout.LayoutParams(dp(150), dp(2)).apply {
+                    gravity = Gravity.CENTER
+                    topMargin = dp(5)
+                }
+            )
+            heroInfo.addView(date)
 
-            addText(content, "BLACKHOLE  •  YOUR SPACE, YOUR CONTROL", 9f, muted)
+            hero.addView(
+                heroInfo,
+                LinearLayout.LayoutParams(0, dp(142), 1f)
+            )
+
+            val circle = TextView(this).apply {
+                text = "●"
+                textSize = 17f
+                gravity = Gravity.CENTER
+                setTextColor(teal)
+            }
+            hero.addView(
+                circle,
+                LinearLayout.LayoutParams(dp(32), dp(32))
+            )
+
+            content.addView(hero)
+
+            val infoSection = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(12), 0, dp(12))
+            }
+
+            val secondBar = View(this).apply {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(teal, Color.rgb(0, 105, 112))
+                ).apply {
+                    cornerRadius = dp(3).toFloat()
+                }
+            }
+
+            infoSection.addView(
+                secondBar,
+                LinearLayout.LayoutParams(dp(42), dp(112))
+            )
+
+            val message = TextView(this).apply {
+                text = "YOUR SPACE. YOUR APPS.\\n\\nEverything you need,\\nright at your fingertips."
+                textSize = 11f
+                gravity = Gravity.CENTER
+                setTextColor(soft)
+                setLineSpacing(dp(3).toFloat(), 1f)
+                setPadding(dp(12), 0, dp(8), 0)
+            }
+
+            infoSection.addView(
+                message,
+                LinearLayout.LayoutParams(0, dp(112), 1f)
+            )
+
+            val smallMark = TextView(this).apply {
+                text = "○"
+                textSize = 22f
+                setTextColor(teal)
+            }
+            infoSection.addView(smallMark)
+
+            content.addView(infoSection)
+
+            val searchButton = TextView(this).apply {
+                text = "⌕    SEARCH APPS"
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(navy)
+                typeface = Typeface.DEFAULT_BOLD
+                background = GradientDrawable().apply {
+                    setColor(teal)
+                    cornerRadius = dp(13).toFloat()
+                }
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showApps("") }
+            }
+
+            content.addView(
+                searchButton,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(54)
+                ).apply {
+                    setMargins(dp(8), dp(8), dp(8), dp(24))
+                }
+            )
+
+            val launchIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+
+            val homeApps = packageManager.queryIntentActivities(launchIntent, 0)
+                .distinctBy { it.activityInfo.packageName }
+                .filter {
+                    !LokiSecurity.isHidden(this, it.activityInfo.packageName)
+                }
+                .sortedBy {
+                    it.loadLabel(packageManager).toString().lowercase()
+                }
+                .take(12)
+
+            homeApps.chunked(4).forEach { appRow ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                }
+
+                appRow.forEach { info ->
+                    val packageName = info.activityInfo.packageName
+                    val appName = info.loadLabel(packageManager).toString()
+
+                    val tile = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        gravity = Gravity.CENTER
+                        setPadding(dp(3), dp(7), dp(3), dp(5))
+
+                        val icon = ImageView(this@MainActivity).apply {
+                            setImageDrawable(info.loadIcon(packageManager))
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            background = GradientDrawable().apply {
+                                setColor(Color.rgb(245, 247, 250))
+                                cornerRadius = dp(11).toFloat()
+                            }
+                            setPadding(dp(8), dp(8), dp(8), dp(8))
+                        }
+
+                        addView(
+                            icon,
+                            LinearLayout.LayoutParams(dp(48), dp(48))
+                        )
+
+                        val label = TextView(this@MainActivity).apply {
+                            text = appName
+                            textSize = 9f
+                            gravity = Gravity.CENTER
+                            setTextColor(white)
+                            maxLines = 1
+                            ellipsize = android.text.TextUtils.TruncateAt.END
+                            setPadding(0, dp(4), 0, 0)
+                        }
+
+                        addView(
+                            label,
+                            LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                dp(20)
+                            )
+                        )
+
+                        isClickable = true
+                        isFocusable = true
+                        setOnClickListener {
+                            packageManager.getLaunchIntentForPackage(packageName)
+                                ?.let { startActivity(it) }
+                        }
+                    }
+
+                    row.addView(
+                        tile,
+                        LinearLayout.LayoutParams(0, dp(82), 1f)
+                    )
+                }
+
+                repeat(4 - appRow.size) {
+                    row.addView(
+                        View(this),
+                        LinearLayout.LayoutParams(0, dp(82), 1f)
+                    )
+                }
+
+                content.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(82)
+                    )
+                )
+            }
         }
     }
 
