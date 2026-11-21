@@ -182,17 +182,12 @@ class MainActivity : Activity() {
 
     private fun showHome() {
         animateScreen {
-            addText(content, "BLACKHOLE", 11f, neon, true)
-            addText(content, "WELCOME BACK", 22f, silver, true)
-            addText(content, "YOUR PERSONAL ANDROID SPACE", 10f, muted)
-
-            addHolographicOrb(190)
-
-            addText(content, "SYSTEM ONLINE", 10f, neon, true)
-            addText(content, "Choose your next action.", 12f, muted)
+            addText(content, "HOME  /  CONTROL CENTER", 10f, neon, true)
+            addText(content, "Your space.", 27f, silver, true)
+            addText(content, "Everything you need, in one place.", 12f, muted)
 
             val search = EditText(this).apply {
-                hint = "Search installed apps..."
+                hint = "Search installed applications..."
                 setHintTextColor(muted)
                 setTextColor(silver)
                 textSize = 14f
@@ -210,43 +205,132 @@ class MainActivity : Activity() {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     dp(54)
                 ).apply {
-                    setMargins(0, dp(16), 0, dp(12))
+                    setMargins(0, dp(18), 0, dp(16))
                 }
             )
 
-            addButton(content, "APPLICATIONS  →") {
-                showApps("")
+            val lokiCard = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(17), dp(14), dp(17), dp(14))
+                background = roundedBox(Color.rgb(9, 25, 36), 22f)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showLoki() }
             }
 
-            addButton(content, "LOKI AI ASSISTANT  ✦") {
-                showLoki()
+            val lokiInfo = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
             }
 
-            addButton(content, "SECURITY  /  HIDDEN APPS  🔒") {
-                LokiSecurity.openSecurityMenu(this) { showApps("") }
+            addText(lokiInfo, "✦  LOKI AI", 17f, neon, true)
+            addText(lokiInfo, "Your personal assistant", 11f, muted)
+            addText(lokiInfo, "Tap to start a conversation", 10f, silver)
+
+            lokiCard.addView(
+                lokiInfo,
+                LinearLayout.LayoutParams(0, dp(76), 1f)
+            )
+
+            val lokiOrb = TextView(this).apply {
+                text = "L"
+                textSize = 24f
+                gravity = Gravity.CENTER
+                setTextColor(neon)
+                typeface = Typeface.DEFAULT_BOLD
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.rgb(8, 35, 49))
+                    setStroke(dp(2), neon)
+                }
             }
 
+            lokiCard.addView(
+                lokiOrb,
+                LinearLayout.LayoutParams(dp(62), dp(62))
+            )
 
-            addText(content, "BLACKHOLE  /  HOLOGRAPHIC UI", 9f, muted)
+            content.addView(
+                lokiCard,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(108)
+                ).apply {
+                    setMargins(0, 0, 0, dp(20))
+                }
+            )
+
+            addText(content, "QUICK ACCESS", 10f, muted, true)
+
+            val shortcuts = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+
+            fun makeShortcut(
+                title: String,
+                subtitle: String,
+                action: () -> Unit
+            ): LinearLayout {
+                return LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(14), dp(12), dp(10), dp(12))
+                    background = roundedBox(panel, 18f)
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { action() }
+
+                    addText(this, title, 13f, silver, true)
+                    addText(this, subtitle, 10f, muted)
+                }
+            }
+
+            shortcuts.addView(
+                makeShortcut("APPS  →", "All applications") {
+                    showApps("")
+                },
+                LinearLayout.LayoutParams(0, dp(82), 1f).apply {
+                    setMargins(0, dp(8), dp(5), 0)
+                }
+            )
+
+            shortcuts.addView(
+                makeShortcut("SECURITY  🔒", "Hidden apps & PIN") {
+                    LokiSecurity.openSecurityMenu(this@MainActivity) {
+                        showApps("")
+                    }
+                },
+                LinearLayout.LayoutParams(0, dp(82), 1f).apply {
+                    setMargins(dp(5), dp(8), 0, 0)
+                }
+            )
+
+            content.addView(
+                shortcuts,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+
+            addText(content, "BLACKHOLE  •  YOUR SPACE, YOUR CONTROL", 9f, muted)
         }
     }
 
     private fun showApps(initialFilter: String) {
         animateScreen {
-            addText(content, "APPLICATIONS", 22f, silver, true)
-            addText(content, "Your installed apps", 12f, muted)
+            addText(content, "APPLICATIONS", 23f, silver, true)
+            addText(content, "YOUR APP LIBRARY", 10f, muted)
 
-            addButton(content, "←  HOME") {
-                showHome()
-            }
+            addButton(content, "←  HOME") { showHome() }
 
             val search = EditText(this).apply {
-                hint = "Type an app name..."
+                hint = "Search applications..."
                 setHintTextColor(muted)
                 setTextColor(silver)
                 textSize = 14f
-                maxLines = 1
-                setSingleLine(true)
+                singleLine = true
                 setPadding(dp(16), 0, dp(16), 0)
                 background = roundedBox(panel, 16f)
             }
@@ -256,7 +340,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
                 ).apply {
-                    setMargins(0, dp(14), 0, dp(16))
+                    setMargins(0, dp(12), 0, dp(14))
                 }
             )
 
@@ -265,7 +349,7 @@ class MainActivity : Activity() {
             }
             content.addView(grid)
 
-            fun updateApps(query: String) {
+            fun refresh(query: String) {
                 populateApps(grid, query)
             }
 
@@ -277,7 +361,7 @@ class MainActivity : Activity() {
                 override fun onTextChanged(
                     s: CharSequence?, start: Int, before: Int, count: Int
                 ) {
-                    updateApps(s?.toString() ?: "")
+                    refresh(s?.toString() ?: "")
                 }
 
                 override fun afterTextChanged(s: Editable?) {}
@@ -285,20 +369,22 @@ class MainActivity : Activity() {
 
             search.setText(initialFilter)
             search.setSelection(search.text.length)
-            updateApps(initialFilter)
+            refresh(initialFilter)
         }
     }
 
     private fun populateApps(grid: LinearLayout, filter: String) {
         grid.removeAllViews()
 
-        val intent = Intent(Intent.ACTION_MAIN).apply {
+        val launchIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
 
-        val apps = packageManager.queryIntentActivities(intent, 0)
+        val apps = packageManager.queryIntentActivities(launchIntent, 0)
             .distinctBy { it.activityInfo.packageName }
-            .filter { !LokiSecurity.isHidden(this, it.activityInfo.packageName) }
+            .filter {
+                !LokiSecurity.isHidden(this, it.activityInfo.packageName)
+            }
             .filter {
                 it.loadLabel(packageManager).toString()
                     .contains(filter, ignoreCase = true)
@@ -308,38 +394,63 @@ class MainActivity : Activity() {
             }
 
         if (apps.isEmpty()) {
-            addText(grid, "No matching apps found.", 14f, muted)
+            addText(grid, "NO APPLICATIONS FOUND", 13f, muted)
             return
         }
 
-        apps.forEach { info ->
-            val appName = info.loadLabel(packageManager).toString()
-            val packageName = info.activityInfo.packageName
+        var row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
 
-            val item = TextView(this).apply {
-                text = appName
-                textSize = 15f
-                letterSpacing = 0.025f
-                gravity = Gravity.CENTER_VERTICAL
-                setTextColor(silver)
-                setPadding(dp(13), dp(15), dp(13), dp(15))
-                minHeight = dp(54)
+        apps.forEachIndexed { index, info ->
+            val packageName = info.activityInfo.packageName
+            val appName = info.loadLabel(packageManager).toString()
+
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(4), dp(12), dp(4), dp(12))
                 isClickable = true
                 isFocusable = true
+                background = roundedBox(panel, 16f)
+
+                val icon = ImageView(this@MainActivity).apply {
+                    setImageDrawable(info.loadIcon(packageManager))
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }
+
+                addView(
+                    icon,
+                    LinearLayout.LayoutParams(dp(44), dp(44))
+                )
+
+                val label = TextView(this@MainActivity).apply {
+                    text = appName
+                    textSize = 10f
+                    gravity = Gravity.CENTER
+                    setTextColor(silver)
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(dp(2), dp(7), dp(2), 0)
+                }
+
+                addView(
+                    label,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(34)
+                    )
+                )
+
                 setOnClickListener {
                     try {
-                        val launch = packageManager
-                            .getLaunchIntentForPackage(packageName)
-
-                        if (launch != null) {
-                            startActivity(launch)
-                        } else {
-                            Toast.makeText(
+                        packageManager.getLaunchIntentForPackage(packageName)
+                            ?.let { startActivity(it) }
+                            ?: Toast.makeText(
                                 this@MainActivity,
                                 "Unable to open app",
                                 Toast.LENGTH_SHORT
                             ).show()
-                        }
                     } catch (e: Exception) {
                         Toast.makeText(
                             this@MainActivity,
@@ -348,51 +459,54 @@ class MainActivity : Activity() {
                         ).show()
                     }
                 }
-            }
 
-            item.setOnLongClickListener {
-                LokiSecurity.requirePin(this@MainActivity) {
-                    LokiSecurity.hidePackage(this@MainActivity, packageName)
-                    Toast.makeText(
-                        this@MainActivity,
-                        "$appName hidden from BlackHole",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    populateApps(grid, filter)
+                setOnLongClickListener {
+                    LokiSecurity.requirePin(this@MainActivity) {
+                        LokiSecurity.hidePackage(
+                            this@MainActivity, packageName
+                        )
+                        Toast.makeText(
+                            this@MainActivity,
+                            "$appName hidden from BlackHole",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        populateApps(grid, filter)
+                    }
+                    true
                 }
-                true
             }
 
-            grid.addView(
-                item,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+            row.addView(
+                cell,
+                LinearLayout.LayoutParams(0, dp(102), 1f).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                }
+            )
+
+            if (index % 4 == 3 || index == apps.lastIndex) {
+                while (row.childCount < 4) {
+                    row.addView(
+                        View(this),
+                        LinearLayout.LayoutParams(0, dp(102), 1f)
+                    )
+                }
+
+                grid.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(108)
+                    )
                 )
-            )
 
-            val divider = View(this).apply {
-                setBackgroundColor(Color.rgb(48, 51, 58))
-            }
-
-            grid.addView(
-                divider,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(1)
-                ).apply {
-                    setMargins(dp(12), 0, dp(12), 0)
+                if (index != apps.lastIndex) {
+                    row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                    }
                 }
-            )
-
-            item.alpha = 0f
-            item.animate().alpha(1f).setDuration(180).start()
+            }
         }
     }
-
-
-
-
 
     private fun showLoki() {
         animateScreen {
