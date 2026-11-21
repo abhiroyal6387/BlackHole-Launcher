@@ -1,5 +1,10 @@
 package org.blackhole.launcher
 
+import org.blackhole.launcher.loki.LokiClient
+import org.blackhole.launcher.loki.LokiMessage
+import org.blackhole.launcher.loki.LokiActionEngine
+import org.blackhole.launcher.loki.LokiSecurity
+
 import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
@@ -40,132 +45,6 @@ class MainActivity : Activity() {
     private val muted = Color.rgb(135, 142, 153)
     private val neon = Color.rgb(53, 217, 255)
 
-    private data class NoteItem(
-        val id: String,
-        val title: String,
-        val body: String,
-        val updatedAt: Long
-    )
-
-    private val notesPrefs by lazy {
-        getSharedPreferences("blackhole_notes", MODE_PRIVATE)
-    }
-
-    private val notes = mutableListOf<NoteItem>()
-
-    private fun loadNotes() {
-        notes.clear()
-        try {
-            val raw = notesPrefs.getString("notes_data", "[]") ?: "[]"
-            val array = org.json.JSONArray(raw)
-
-            for (i in 0 until array.length()) {
-                val item = array.getJSONObject(i)
-                notes.add(
-                    NoteItem(
-                        item.getString("id"),
-                        item.getString("title"),
-                        item.getString("body"),
-                        item.getLong("updatedAt")
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Notes could not be loaded", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun saveNotes() {
-        val array = org.json.JSONArray()
-
-        notes.forEach { note ->
-            val item = org.json.JSONObject()
-            item.put("id", note.id)
-            item.put("title", note.title)
-            item.put("body", note.body)
-            item.put("updatedAt", note.updatedAt)
-            array.put(item)
-        }
-
-        notesPrefs.edit()
-            .putString("notes_data", array.toString())
-            .apply()
-    }
-
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        window.statusBarColor = black
-        window.navigationBarColor = black
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(12))
-            setBackgroundColor(black)
-        }
-
-        val heading = TextView(this).apply {
-            text = "H O S T L O K I"
-            textSize = 19f
-            letterSpacing = 0.12f
-            gravity = Gravity.CENTER
-            setTextColor(silver)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-
-        val subtitle = TextView(this).apply {
-            text = "YOUR SPACE  •  YOUR CONTROL"
-            textSize = 9f
-            letterSpacing = 0.18f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, dp(5), 0, dp(15))
-        }
-
-        val clock = TextClock(this).apply {
-            format12Hour = "hh:mm"
-            format24Hour = "HH:mm"
-            textSize = 53f
-            gravity = Gravity.CENTER
-            setTextColor(silver)
-            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-            letterSpacing = 0.03f
-        }
-
-        val date = TextClock(this).apply {
-            format12Hour = "EEEE  •  dd MMMM"
-            format24Hour = "EEEE  •  dd MMMM"
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, 0, 0, dp(22))
-        }
-
-        content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            overScrollMode = View.OVER_SCROLL_NEVER
-            addView(content)
-        }
-
-        root.addView(heading)
-        root.addView(subtitle)
-        root.addView(clock)
-        root.addView(date)
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-            )
-        )
-
-        setContentView(root)
-        showHome()
-    }
 
 
 
@@ -267,9 +146,10 @@ class MainActivity : Activity() {
                 showLoki()
             }
 
-            addButton(content, "BLACKHOLE NOTES  →") {
-                showNotes()
+            addButton(content, "SECURITY  /  HIDDEN APPS  🔒") {
+                LokiSecurity.openSecurityMenu(this) { showApps("") }
             }
+
 
             addText(content, "BLACKHOLE  /  HOLOGRAPHIC UI", 9f, muted)
         }
@@ -342,6 +222,7 @@ class MainActivity : Activity() {
 
         val apps = packageManager.queryIntentActivities(intent, 0)
             .distinctBy { it.activityInfo.packageName }
+            .filter { !LokiSecurity.isHidden(this, it.activityInfo.packageName) }
             .filter {
                 it.loadLabel(packageManager).toString()
                     .contains(filter, ignoreCase = true)
@@ -393,6 +274,19 @@ class MainActivity : Activity() {
                 }
             }
 
+            item.setOnLongClickListener {
+                LokiSecurity.requirePin(this@MainActivity) {
+                    LokiSecurity.hidePackage(this@MainActivity, packageName)
+                    Toast.makeText(
+                        this@MainActivity,
+                        "$appName hidden from BlackHole",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    populateApps(grid, filter)
+                }
+                true
+            }
+
             grid.addView(
                 item,
                 LinearLayout.LayoutParams(
@@ -421,212 +315,7 @@ class MainActivity : Activity() {
     }
 
 
-    private fun showNotes() {
-        loadNotes()
 
-        animateScreen {
-            addText(content, "BLACKHOLE", 11f, muted, true)
-            addText(content, "MY NOTES", 25f, silver, true)
-            addText(content, "Your thoughts. Safely saved.", 12f, neon)
-
-            addButton(content, "← HOME") {
-                showHome()
-            }
-
-            addButton(content, "+ CREATE NEW NOTE") {
-                showNoteEditor(null)
-            }
-
-            val search = EditText(this).apply {
-                hint = "Search your notes..."
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 14f
-                setSingleLine(true)
-                setPadding(dp(15), 0, dp(15), 0)
-                background = roundedBox(panel, 16f)
-            }
-
-            content.addView(
-                search,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
-                ).apply {
-                    setMargins(0, dp(12), 0, dp(12))
-                }
-            )
-
-            val noteList = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-            content.addView(noteList)
-
-            fun renderNotes(query: String) {
-                noteList.removeAllViews()
-
-                val filtered = notes
-                    .filter {
-                        it.title.contains(query, true) ||
-                        it.body.contains(query, true)
-                    }
-                    .sortedByDescending { it.updatedAt }
-
-                if (filtered.isEmpty()) {
-                    addText(
-                        noteList,
-                        "No notes found. Create your first note!",
-                        13f,
-                        muted
-                    )
-                } else {
-                    filtered.forEach { note ->
-                        addButton(
-                            noteList,
-                            "${note.title}\n${note.body.take(65)}"
-                        ) {
-                            showNoteEditor(note.id)
-                        }
-                    }
-                }
-            }
-
-            search.addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(
-                    s: CharSequence?, start: Int, count: Int, after: Int
-                ) {}
-
-                override fun onTextChanged(
-                    s: CharSequence?, start: Int, before: Int, count: Int
-                ) {
-                    renderNotes(s?.toString() ?: "")
-                }
-
-                override fun afterTextChanged(s: Editable?) {}
-            })
-
-            renderNotes("")
-        }
-    }
-
-    private fun showNoteEditor(noteId: String?) {
-        val existing = notes.find { it.id == noteId }
-
-        animateScreen {
-            addText(
-                content,
-                if (existing == null) "CREATE NOTE" else "EDIT NOTE",
-                23f,
-                silver,
-                true
-            )
-
-            addButton(content, "← BACK TO NOTES") {
-                showNotes()
-            }
-
-            val titleInput = EditText(this).apply {
-                hint = "Note title"
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 17f
-                setSingleLine(true)
-                setPadding(dp(15), dp(10), dp(15), dp(10))
-                background = roundedBox(panel, 14f)
-                setText(existing?.title ?: "")
-            }
-
-            content.addView(
-                titleInput,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(55)
-                ).apply {
-                    setMargins(0, dp(15), 0, dp(10))
-                }
-            )
-
-            val bodyInput = EditText(this).apply {
-                hint = "Write something..."
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 15f
-                gravity = Gravity.TOP
-                minLines = 8
-                inputType = InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                setPadding(dp(15), dp(15), dp(15), dp(15))
-                background = roundedBox(panel, 14f)
-                setText(existing?.body ?: "")
-            }
-
-            content.addView(
-                bodyInput,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(230)
-                ).apply {
-                    setMargins(0, dp(5), 0, dp(15))
-                }
-            )
-
-            addButton(content, "SAVE NOTE  ✓") {
-                val title = titleInput.text.toString().trim()
-                val body = bodyInput.text.toString().trim()
-
-                if (title.isEmpty() && body.isEmpty()) {
-                    Toast.makeText(
-                        this,
-                        "Write something first",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@addButton
-                }
-
-                val id = existing?.id
-                    ?: System.currentTimeMillis().toString()
-
-                val updated = NoteItem(
-                    id,
-                    title.ifEmpty { "Untitled" },
-                    body,
-                    System.currentTimeMillis()
-                )
-
-                val index = notes.indexOfFirst { it.id == id }
-
-                if (index >= 0) {
-                    notes[index] = updated
-                } else {
-                    notes.add(updated)
-                }
-
-                saveNotes()
-
-                Toast.makeText(
-                    this,
-                    "Note saved",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                showNotes()
-            }
-
-            if (existing != null) {
-                addButton(content, "DELETE NOTE") {
-                    notes.removeAll { it.id == existing.id }
-                    saveNotes()
-
-                    Toast.makeText(
-                        this,
-                        "Note deleted",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    showNotes()
-                }
-            }
-        }
-    }
 
 
     private fun showLoki() {
