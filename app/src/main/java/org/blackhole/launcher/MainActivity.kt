@@ -48,6 +48,82 @@ class MainActivity : Activity() {
 
 
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        window.statusBarColor = black
+        window.navigationBarColor = black
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            setBackgroundColor(black)
+        }
+
+        val heading = TextView(this).apply {
+            text = "B L A C K H O L E"
+            textSize = 19f
+            letterSpacing = 0.12f
+            gravity = Gravity.CENTER
+            setTextColor(silver)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }
+
+        val subtitle = TextView(this).apply {
+            text = "YOUR SPACE  •  YOUR CONTROL"
+            textSize = 9f
+            letterSpacing = 0.18f
+            gravity = Gravity.CENTER
+            setTextColor(muted)
+            setPadding(0, dp(5), 0, dp(15))
+        }
+
+        val clock = TextClock(this).apply {
+            format12Hour = "hh:mm"
+            format24Hour = "HH:mm"
+            textSize = 53f
+            gravity = Gravity.CENTER
+            setTextColor(silver)
+            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
+        }
+
+        val date = TextClock(this).apply {
+            format12Hour = "EEEE  •  dd MMMM"
+            format24Hour = "EEEE  •  dd MMMM"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(muted)
+            setPadding(0, 0, 0, dp(22))
+        }
+
+        content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(content)
+        }
+
+        root.addView(heading)
+        root.addView(subtitle)
+        root.addView(clock)
+        root.addView(date)
+        root.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+            )
+        )
+
+        setContentView(root)
+
+        LokiSecurity.startupGate(this) {
+            showHome()
+        }
+    }
+
     private fun addHolographicOrb(size: Int = 184) {
         val stage = FrameLayout(this)
 
