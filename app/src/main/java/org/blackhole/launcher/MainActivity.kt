@@ -52,7 +52,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         window.statusBarColor = Color.rgb(29, 28, 57)
-        window.navigationBarColor = Color.rgb(29, 28, 57)
+        window.navigationBarColor = Color.BLACK
 
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -339,21 +339,6 @@ class MainActivity : Activity() {
                         gravity = Gravity.CENTER
                         setPadding(dp(3), dp(7), dp(3), dp(5))
 
-                        val icon = ImageView(this@MainActivity).apply {
-                            setImageDrawable(info.loadIcon(packageManager))
-                            scaleType = ImageView.ScaleType.FIT_CENTER
-                            background = GradientDrawable().apply {
-                                setColor(Color.rgb(245, 247, 250))
-                                cornerRadius = dp(11).toFloat()
-                            }
-                            setPadding(dp(8), dp(8), dp(8), dp(8))
-                        }
-
-                        addView(
-                            icon,
-                            LinearLayout.LayoutParams(dp(48), dp(48))
-                        )
-
                         val label = TextView(this@MainActivity).apply {
                             text = appName
                             textSize = 9f
@@ -498,16 +483,6 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 background = roundedBox(panel, 16f)
-
-                val icon = ImageView(this@MainActivity).apply {
-                    setImageDrawable(info.loadIcon(packageManager))
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                }
-
-                addView(
-                    icon,
-                    LinearLayout.LayoutParams(dp(44), dp(44))
-                )
 
                 val label = TextView(this@MainActivity).apply {
                     text = appName
