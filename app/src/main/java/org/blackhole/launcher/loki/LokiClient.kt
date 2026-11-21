@@ -1,4 +1,4 @@
-package org.blackhole.launcher
+package org.blackhole.launcher.loki
 
 import android.os.Handler
 import android.os.Looper

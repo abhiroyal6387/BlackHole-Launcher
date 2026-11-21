@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/loki-rebuild
   workflow_dispatch:
 
 permissions:
