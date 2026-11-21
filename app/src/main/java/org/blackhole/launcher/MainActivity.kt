@@ -323,14 +323,16 @@ class MainActivity : Activity() {
             addText(content, "APPLICATIONS", 23f, silver, true)
             addText(content, "YOUR APP LIBRARY", 10f, muted)
 
-            addButton(content, "←  HOME") { showHome() }
+            addButton(content, "← HOME") {
+                showHome()
+            }
 
             val search = EditText(this).apply {
                 hint = "Search applications..."
                 setHintTextColor(muted)
                 setTextColor(silver)
                 textSize = 14f
-                singleLine = true
+                setSingleLine(true)
                 setPadding(dp(16), 0, dp(16), 0)
                 background = roundedBox(panel, 16f)
             }
@@ -338,7 +340,8 @@ class MainActivity : Activity() {
             content.addView(
                 search,
                 LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(50)
                 ).apply {
                     setMargins(0, dp(12), 0, dp(14))
                 }
@@ -349,10 +352,6 @@ class MainActivity : Activity() {
             }
             content.addView(grid)
 
-            fun refresh(query: String) {
-                populateApps(grid, query)
-            }
-
             search.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(
                     s: CharSequence?, start: Int, count: Int, after: Int
@@ -361,7 +360,7 @@ class MainActivity : Activity() {
                 override fun onTextChanged(
                     s: CharSequence?, start: Int, before: Int, count: Int
                 ) {
-                    refresh(s?.toString() ?: "")
+                    populateApps(grid, s?.toString() ?: "")
                 }
 
                 override fun afterTextChanged(s: Editable?) {}
@@ -369,7 +368,7 @@ class MainActivity : Activity() {
 
             search.setText(initialFilter)
             search.setSelection(search.text.length)
-            refresh(initialFilter)
+            populateApps(grid, initialFilter)
         }
     }
 
@@ -463,7 +462,8 @@ class MainActivity : Activity() {
                 setOnLongClickListener {
                     LokiSecurity.requirePin(this@MainActivity) {
                         LokiSecurity.hidePackage(
-                            this@MainActivity, packageName
+                            this@MainActivity,
+                            packageName
                         )
                         Toast.makeText(
                             this@MainActivity,
