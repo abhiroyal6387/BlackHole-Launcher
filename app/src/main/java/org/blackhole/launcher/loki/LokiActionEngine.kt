@@ -2,29 +2,45 @@ package org.blackhole.launcher.loki
 
 import android.app.Activity
 import android.content.Intent
+import java.util.Locale
 
 object LokiActionEngine {
 
+    private val actionWords = listOf(
+        "open", "launch", "start", "run",
+        "kholo", "khol", "khol do", "kholna",
+        "chalao", "shuru karo", "start karo",
+        "खोलो", "खोल", "खोल दो", "चलाओ",
+        "चालू करो", "शुरू करो"
+    )
+
+    private val fillerWords = listOf(
+        "please", "mere phone me", "mere phone mein",
+        "mere mobile me", "mere mobile mein",
+        "app", "application", "ko", "zara",
+        "jara", "abhi", "the", "hai"
+    )
+
     fun execute(activity: Activity, command: String): String? {
+        val text = command.lowercase(Locale.ROOT).trim()
 
-        val text = command.trim().lowercase()
+        if (actionWords.none { text.contains(it) }) return null
 
-        val openWords = listOf(
-            "open", "launch", "start",
-            "kholo", "khol do", "chalao",
-            " खोलो", " खोल दो"
-        )
+        var searchName = text
 
-        if (openWords.none { text.contains(it) }) {
-            return null
-        }
+        (actionWords + fillerWords)
+            .sortedByDescending { it.length }
+            .forEach { word ->
+                searchName = searchName.replace(word, " ")
+            }
 
-        val searchName = text
-            .replace(Regex("(?i)open|launch|start|kholo|khol do|chalao|खोलो|खोल दो"), "")
+        searchName = searchName
+            .replace(Regex("[^\\p{L}\\p{N} ]"), " ")
+            .replace(Regex("\\s+"), " ")
             .trim()
 
         if (searchName.isBlank()) {
-            return "Kaunsi app open karni hai? 😈"
+            return "Kaunsi application kholni hai?"
         }
 
         return try {
@@ -35,40 +51,42 @@ object LokiActionEngine {
             val apps = activity.packageManager
                 .queryIntentActivities(intent, 0)
 
-            val matches = apps.filter {
-                it.loadLabel(activity.packageManager)
+            val matches = apps.filter { info ->
+                val label = info.loadLabel(activity.packageManager)
                     .toString()
-                    .contains(searchName, ignoreCase = true)
-            }
+                    .lowercase(Locale.ROOT)
+
+                label == searchName || label.contains(searchName)
+            }.distinctBy { it.activityInfo.packageName }
 
             when {
-                matches.isEmpty() -> {
-                    "App nahi mili: $searchName"
-                }
+                matches.isEmpty() ->
+                    "App nahi mili: $searchName. App ka naam dobara bolo."
 
                 matches.size > 1 -> {
-                    "Multiple apps mili hain. Naam thoda specific batao."
+                    val names = matches.take(5).joinToString(", ") {
+                        it.loadLabel(activity.packageManager).toString()
+                    }
+                    "Ek se zyada apps mili hain: $names. Exact naam bolo."
                 }
 
                 else -> {
                     val info = matches.first()
-                    val packageName = info.activityInfo.packageName
-
-                    val launchIntent =
-                        activity.packageManager
-                            .getLaunchIntentForPackage(packageName)
+                    val appName = info.loadLabel(activity.packageManager).toString()
+                    val launchIntent = activity.packageManager
+                        .getLaunchIntentForPackage(info.activityInfo.packageName)
 
                     if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         activity.startActivity(launchIntent)
-                        "Done! ${info.loadLabel(activity.packageManager)} open kar raha hoon. 😎"
+                        "$appName open kar raha hoon!"
                     } else {
-                        "Is app ko launch nahi kar paya."
+                        "$appName ko open nahi kar paya."
                     }
                 }
             }
-
         } catch (e: Exception) {
-            "App open nahi ho payi: ${e.message}"
+            "App open nahi ho payi: ${e.message ?: "Unknown error"}"
         }
     }
 }
