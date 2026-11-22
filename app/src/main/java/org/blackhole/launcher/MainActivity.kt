@@ -5,9 +5,13 @@ import org.blackhole.launcher.loki.LokiMessage
 import org.blackhole.launcher.loki.LokiActionEngine
 import org.blackhole.launcher.loki.LokiSecurity
 
+import android.Manifest
 import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
+import android.provider.Settings
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraCharacteristics
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -38,6 +42,8 @@ class MainActivity : Activity() {
 
     private val lokiHistory = mutableListOf<LokiMessage>()
     private var lokiBusy = false
+    private var torchOn = false
+    private val torchRequestCode = 7001
 
     private val black = Color.rgb(5, 5, 7)
     private val panel = Color.rgb(19, 20, 24)
@@ -70,6 +76,70 @@ class MainActivity : Activity() {
 
         LokiSecurity.startupGate(this) {
             showHome()
+        }
+    }
+
+    private fun openInternetPanel() {
+        try {
+            startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY))
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+        }
+    }
+
+    private fun openAirplaneSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS))
+        } catch (_: Exception) {
+            Toast.makeText(this, "Airplane settings unavailable", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun toggleTorch() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.CAMERA),
+                torchRequestCode
+            )
+            return
+        }
+
+        try {
+            val cameraManager = getSystemService(CameraManager::class.java)
+            val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+                cameraManager.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            }
+            if (cameraId == null) {
+                Toast.makeText(this, "Torch unavailable", Toast.LENGTH_SHORT).show()
+                return
+            }
+            torchOn = !torchOn
+            cameraManager.setTorchMode(cameraId, torchOn)
+            Toast.makeText(
+                this,
+                if (torchOn) "Torch ON" else "Torch OFF",
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (_: Exception) {
+            torchOn = false
+            Toast.makeText(this, "Could not switch torch", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == torchRequestCode &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            toggleTorch()
+        } else if (requestCode == torchRequestCode) {
+            Toast.makeText(this, "Camera permission is needed for torch", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -285,6 +355,46 @@ class MainActivity : Activity() {
 
             content.addView(infoSection)
 
+            val quickControls = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+
+            fun quickButton(label: String, action: () -> Unit) {
+                val button = TextView(this).apply {
+                    text = if (label.startsWith("TORCH")) {
+                        if (torchOn) "TORCH: ON" else "TORCH: OFF"
+                    } else label
+                    textSize = 10f
+                    gravity = Gravity.CENTER
+                    setTextColor(white)
+                    typeface = Typeface.DEFAULT_BOLD
+                    background = roundedBox(Color.rgb(19, 20, 24), 12f)
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { action() }
+                }
+                quickControls.addView(
+                    button,
+                    LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                        setMargins(dp(3), 0, dp(3), 0)
+                    }
+                )
+            }
+
+            quickButton("INTERNET / WI-FI") { openInternetPanel() }
+            quickButton("AIRPLANE") { openAirplaneSettings() }
+            quickButton("TORCH: OFF") { toggleTorch() }
+
+            content.addView(
+                quickControls,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(54)
+                ).apply {
+                    setMargins(0, dp(5), 0, dp(8))
+                }
+            )
+
             val searchButton = TextView(this).apply {
                 text = "⌕    SEARCH APPS"
                 textSize = 13f
@@ -396,6 +506,12 @@ class MainActivity : Activity() {
 
             addButton(content, "← HOME") {
                 showHome()
+            }
+
+            addButton(content, "HIDDEN APPS / SECURITY") {
+                LokiSecurity.openSecurityMenu(this) {
+                    showApps("")
+                }
             }
 
             val search = EditText(this).apply {

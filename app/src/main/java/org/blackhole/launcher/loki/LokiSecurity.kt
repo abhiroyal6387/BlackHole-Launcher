@@ -66,7 +66,7 @@ object LokiSecurity {
         }
 
         val dialog = AlertDialog.Builder(activity)
-            .setTitle("BLACKHOLE LOCK")
+            .setTitle("HOSTLOKI LOCK")
             .setMessage("Enter your PIN to continue.")
             .setView(input)
             .setPositiveButton("UNLOCK", null)
@@ -112,7 +112,7 @@ object LokiSecurity {
         layout.addView(second)
 
         val dialog = AlertDialog.Builder(activity)
-            .setTitle("SET BLACKHOLE PIN")
+            .setTitle("SET HOSTLOKI PIN")
             .setMessage("Choose a PIN you can remember.")
             .setView(layout)
             .setPositiveButton("SAVE", null)
@@ -151,7 +151,7 @@ object LokiSecurity {
     fun openSecurityMenu(activity: Activity, onApps: () -> Unit) {
         val options = arrayOf("Set / Change PIN", "Manage Hidden Apps", "Close")
         AlertDialog.Builder(activity)
-            .setTitle("BLACKHOLE SECURITY")
+            .setTitle("HOSTLOKI SECURITY")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
