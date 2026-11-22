@@ -1,8 +1,17 @@
 package org.blackhole.launcher
 
+import org.blackhole.launcher.loki.LokiClient
+import org.blackhole.launcher.loki.LokiMessage
+import org.blackhole.launcher.loki.LokiActionEngine
+import org.blackhole.launcher.loki.LokiSecurity
+
+import android.Manifest
 import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
+import android.provider.Settings
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraCharacteristics
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
@@ -18,6 +27,12 @@ import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
 import android.widget.Toast
+import android.speech.SpeechRecognizer
+import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import java.util.Locale
 import android.widget.FrameLayout
 import android.text.InputType
 import android.content.SharedPreferences
@@ -28,11 +43,22 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
 
     private lateinit var lokiMessagesView: LinearLayout
+    private lateinit var lokiChatScroll: ScrollView
     private lateinit var lokiInput: EditText
     private lateinit var lokiSendButton: TextView
 
     private val lokiHistory = mutableListOf<LokiMessage>()
     private var lokiBusy = false
+    private var torchOn = false
+    private val torchRequestCode = 7001
+    private val audioRequestCode = 7002
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
+    private var lokiScreenActive = false
+    private var lokiGreetingStarted = false
+    private var lokiAutoListenEnabled = false
+    private var listenAfterSpeech = false
 
     private val black = Color.rgb(5, 5, 7)
     private val panel = Color.rgb(19, 20, 24)
@@ -40,110 +66,19 @@ class MainActivity : Activity() {
     private val muted = Color.rgb(135, 142, 153)
     private val neon = Color.rgb(53, 217, 255)
 
-    private data class NoteItem(
-        val id: String,
-        val title: String,
-        val body: String,
-        val updatedAt: Long
-    )
 
-    private val notesPrefs by lazy {
-        getSharedPreferences("blackhole_notes", MODE_PRIVATE)
-    }
-
-    private val notes = mutableListOf<NoteItem>()
-
-    private fun loadNotes() {
-        notes.clear()
-        try {
-            val raw = notesPrefs.getString("notes_data", "[]") ?: "[]"
-            val array = org.json.JSONArray(raw)
-
-            for (i in 0 until array.length()) {
-                val item = array.getJSONObject(i)
-                notes.add(
-                    NoteItem(
-                        item.getString("id"),
-                        item.getString("title"),
-                        item.getString("body"),
-                        item.getLong("updatedAt")
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Notes could not be loaded", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun saveNotes() {
-        val array = org.json.JSONArray()
-
-        notes.forEach { note ->
-            val item = org.json.JSONObject()
-            item.put("id", note.id)
-            item.put("title", note.title)
-            item.put("body", note.body)
-            item.put("updatedAt", note.updatedAt)
-            array.put(item)
-        }
-
-        notesPrefs.edit()
-            .putString("notes_data", array.toString())
-            .apply()
-    }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = black
-        window.navigationBarColor = black
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(12))
-            setBackgroundColor(black)
-        }
-
-        val heading = TextView(this).apply {
-            text = "H O S T L O K I"
-            textSize = 19f
-            letterSpacing = 0.12f
-            gravity = Gravity.CENTER
-            setTextColor(silver)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-
-        val subtitle = TextView(this).apply {
-            text = "YOUR SPACE  •  YOUR CONTROL"
-            textSize = 9f
-            letterSpacing = 0.18f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, dp(5), 0, dp(15))
-        }
-
-        val clock = TextClock(this).apply {
-            format12Hour = "hh:mm"
-            format24Hour = "HH:mm"
-            textSize = 53f
-            gravity = Gravity.CENTER
-            setTextColor(silver)
-            typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-            letterSpacing = 0.03f
-        }
-
-        val date = TextClock(this).apply {
-            format12Hour = "EEEE  •  dd MMMM"
-            format24Hour = "EEEE  •  dd MMMM"
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            setPadding(0, 0, 0, dp(22))
-        }
+        window.statusBarColor = Color.rgb(29, 28, 57)
+        window.navigationBarColor = Color.BLACK
 
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(12), dp(18), dp(16))
+            setBackgroundColor(Color.rgb(29, 28, 57))
         }
 
         val scroll = ScrollView(this).apply {
@@ -152,98 +87,490 @@ class MainActivity : Activity() {
             addView(content)
         }
 
-        root.addView(heading)
-        root.addView(subtitle)
-        root.addView(clock)
-        root.addView(date)
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-            )
-        )
+        setContentView(scroll)
 
-        setContentView(root)
-        showHome()
+        LokiSecurity.startupGate(this) {
+            showHome()
+        }
+    }
+
+    private fun openInternetPanel() {
+        try {
+            startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY))
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+        }
+    }
+
+    private fun openAirplaneSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS))
+        } catch (_: Exception) {
+            Toast.makeText(this, "Airplane settings unavailable", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun toggleTorch() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.CAMERA),
+                torchRequestCode
+            )
+            return
+        }
+
+        try {
+            val cameraManager = getSystemService(CameraManager::class.java)
+            val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+                cameraManager.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            }
+            if (cameraId == null) {
+                Toast.makeText(this, "Torch unavailable", Toast.LENGTH_SHORT).show()
+                return
+            }
+            torchOn = !torchOn
+            cameraManager.setTorchMode(cameraId, torchOn)
+            Toast.makeText(
+                this,
+                if (torchOn) "Torch ON" else "Torch OFF",
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (_: Exception) {
+            torchOn = false
+            Toast.makeText(this, "Could not switch torch", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == torchRequestCode &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            toggleTorch()
+        } else if (requestCode == torchRequestCode) {
+            Toast.makeText(this, "Camera permission is needed for torch", Toast.LENGTH_SHORT).show()
+        } else if (requestCode == audioRequestCode &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startLokiVoiceSession()
+        } else if (requestCode == audioRequestCode) {
+            Toast.makeText(this, "Microphone permission is needed for voice input", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun addHolographicOrb(size: Int = 184) {
+        val stage = FrameLayout(this)
+
+        fun makeRing(stroke: Int): TextView {
+            return TextView(this).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dp(stroke), neon)
+                }
+                elevation = dp(5).toFloat()
+            }
+        }
+
+        val outer = makeRing(1)
+        val middle = makeRing(2)
+
+        val core = TextView(this).apply {
+            text = "LOKI"
+            textSize = 17f
+            gravity = Gravity.CENTER
+            setTextColor(silver)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.rgb(8, 23, 34))
+                setStroke(dp(2), neon)
+            }
+            elevation = dp(12).toFloat()
+        }
+
+        stage.addView(outer, FrameLayout.LayoutParams(dp(154), dp(154), Gravity.CENTER))
+        stage.addView(middle, FrameLayout.LayoutParams(dp(128), dp(128), Gravity.CENTER))
+        stage.addView(core, FrameLayout.LayoutParams(dp(94), dp(94), Gravity.CENTER))
+
+        content.addView(stage, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(maxOf(size, 154))
+        ))
+
+        stage.alpha = 0f
+        stage.animate().alpha(1f).setDuration(650).start()
+
+        android.animation.ObjectAnimator.ofFloat(outer, View.ROTATION, 0f, 360f).apply {
+            duration = 14000
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            start()
+        }
+
+        android.animation.ObjectAnimator.ofFloat(middle, View.ROTATION, 360f, 0f).apply {
+            duration = 9500
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            start()
+        }
+
+        listOf(View.SCALE_X, View.SCALE_Y).forEach { property ->
+            android.animation.ObjectAnimator.ofFloat(core, property, 1f, 1.09f, 1f).apply {
+                duration = 1800
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                start()
+            }
+        }
     }
 
     private fun showHome() {
+        lokiScreenActive = false
+        lokiGreetingStarted = false
+        lokiAutoListenEnabled = false
+        listenAfterSpeech = false
+        speechRecognizer?.cancel()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        textToSpeech?.stop()
+
         animateScreen {
-            addText(content, "ARE AA GAYE", 11f, muted, true)
-            addText(content, "KHYR BURA BHI NHI HAI YE.", 21f, silver, true)
-            addText(
-                content,
-                "🫣.",
-                12f,
-                muted
+            val navy = Color.rgb(29, 28, 57)
+            val teal = Color.rgb(0, 224, 190)
+            val white = Color.rgb(239, 241, 250)
+            val soft = Color.rgb(174, 177, 199)
+
+            content.setBackgroundColor(navy)
+
+            val topLine = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            addText(topLine, "HostLoki", 13f, white, true)
+
+            val topSpacer = View(this)
+            topLine.addView(
+                topSpacer,
+                LinearLayout.LayoutParams(0, dp(1), 1f)
             )
 
-            val search = EditText(this).apply {
-                hint = "Eshke hai hume log"
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 14f
-                maxLines = 1
-                setSingleLine(true)
-                isFocusable = false
-                setPadding(dp(17), 0, dp(17), 0)
-                background = roundedBox(panel, 18f)
+            val statusDot = TextView(this).apply {
+                text = "●"
+                textSize = 12f
+                setTextColor(teal)
+            }
+            topLine.addView(statusDot)
+            content.addView(topLine)
+
+            val hero = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(22), 0, dp(8))
+            }
+
+            val leftBar = View(this).apply {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(teal, Color.rgb(0, 105, 112))
+                ).apply {
+                    cornerRadius = dp(3).toFloat()
+                }
+            }
+
+            hero.addView(
+                leftBar,
+                LinearLayout.LayoutParams(dp(42), dp(142))
+            )
+
+            val heroInfo = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(12), 0, dp(5), 0)
+            }
+
+            val day = TextClock(this).apply {
+                format12Hour = "EEEE"
+                format24Hour = "EEEE"
+                textSize = 29f
+                letterSpacing = 0.12f
+                gravity = Gravity.CENTER
+                setTextColor(white)
+                typeface = Typeface.create("serif", Typeface.BOLD)
+            }
+
+            val underline = View(this).apply {
+                setBackgroundColor(teal)
+            }
+
+            val date = TextClock(this).apply {
+                format12Hour = "dd MMMM yyyy"
+                format24Hour = "dd MMMM yyyy"
+                textSize = 10f
+                gravity = Gravity.CENTER
+                setTextColor(soft)
+                setPadding(0, dp(7), 0, 0)
+            }
+
+            heroInfo.addView(
+                day,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+            heroInfo.addView(
+                underline,
+                LinearLayout.LayoutParams(dp(150), dp(2)).apply {
+                    gravity = Gravity.CENTER
+                    topMargin = dp(5)
+                }
+            )
+            heroInfo.addView(date)
+
+            hero.addView(
+                heroInfo,
+                LinearLayout.LayoutParams(0, dp(142), 1f)
+            )
+
+            val circle = TextView(this).apply {
+                text = "●"
+                textSize = 17f
+                gravity = Gravity.CENTER
+                setTextColor(teal)
+            }
+            hero.addView(
+                circle,
+                LinearLayout.LayoutParams(dp(32), dp(32))
+            )
+
+            content.addView(hero)
+
+            val infoSection = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(12), 0, dp(12))
+            }
+
+            val secondBar = View(this).apply {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(teal, Color.rgb(0, 105, 112))
+                ).apply {
+                    cornerRadius = dp(3).toFloat()
+                }
+            }
+
+            infoSection.addView(
+                secondBar,
+                LinearLayout.LayoutParams(dp(42), dp(112))
+            )
+
+            val lokiButton = TextView(this).apply {
+                text = "✦  LOKI  ✦"
+                textSize = 21f
+                gravity = Gravity.CENTER
+                setTextColor(teal)
+                setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    setColor(Color.rgb(27, 29, 57))
+                    cornerRadius = dp(18).toFloat()
+                    setStroke(dp(2), teal)
+                }
+                elevation = dp(8).toFloat()
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Open Loki Assistant"
+                setOnClickListener {
+                    showLoki()
+                }
+            }
+
+            infoSection.addView(
+                lokiButton,
+                LinearLayout.LayoutParams(0, dp(76), 1f).apply {
+                    setMargins(dp(12), 0, dp(8), 0)
+                }
+            )
+
+            val smallMark = TextView(this).apply {
+                text = "○"
+                textSize = 22f
+                setTextColor(teal)
+            }
+            infoSection.addView(smallMark)
+
+            content.addView(infoSection)
+
+            val quickControls = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+
+            fun quickButton(label: String, action: () -> Unit) {
+                val button = TextView(this).apply {
+                    text = if (label.startsWith("TORCH")) {
+                        if (torchOn) "TORCH: ON" else "TORCH: OFF"
+                    } else label
+                    textSize = 10f
+                    gravity = Gravity.CENTER
+                    setTextColor(white)
+                    typeface = Typeface.DEFAULT_BOLD
+                    background = roundedBox(Color.rgb(19, 20, 24), 12f)
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { action() }
+                }
+                quickControls.addView(
+                    button,
+                    LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                        setMargins(dp(3), 0, dp(3), 0)
+                    }
+                )
+            }
+
+            quickButton("INTERNET / WI-FI") { openInternetPanel() }
+            quickButton("AIRPLANE") { openAirplaneSettings() }
+            quickButton("TORCH: OFF") { toggleTorch() }
+
+            content.addView(
+                quickControls,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(54)
+                ).apply {
+                    setMargins(0, dp(5), 0, dp(8))
+                }
+            )
+
+            val searchButton = TextView(this).apply {
+                text = "⌕    SEARCH APPS"
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(navy)
+                typeface = Typeface.DEFAULT_BOLD
+                background = GradientDrawable().apply {
+                    setColor(teal)
+                    cornerRadius = dp(13).toFloat()
+                }
+                isClickable = true
+                isFocusable = true
                 setOnClickListener { showApps("") }
             }
 
             content.addView(
-                search,
+                searchButton,
                 LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(54)
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(54)
                 ).apply {
-                    setMargins(0, dp(24), 0, dp(14))
+                    setMargins(dp(8), dp(8), dp(8), dp(24))
                 }
             )
 
-            addButton(content, "OPEN APP DRAWER  →") {
-                showApps("")
+            val launchIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
             }
 
-            addButton(content, "LOKI  •  AI ASSISTANT") {
-                showLoki()
+            val homeApps = packageManager.queryIntentActivities(launchIntent, 0)
+                .distinctBy { it.activityInfo.packageName }
+                .filter {
+                    !LokiSecurity.isHidden(this, it.activityInfo.packageName)
+                }
+                .sortedBy {
+                    it.loadLabel(packageManager).toString().lowercase()
+                }
+                .take(12)
+
+            homeApps.chunked(4).forEach { appRow ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                }
+
+                appRow.forEach { info ->
+                    val packageName = info.activityInfo.packageName
+                    val appName = info.loadLabel(packageManager).toString()
+
+                    val tile = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        gravity = Gravity.CENTER
+                        setPadding(dp(3), dp(7), dp(3), dp(5))
+
+                        val label = TextView(this@MainActivity).apply {
+                            text = appName
+                            textSize = 9f
+                            gravity = Gravity.CENTER
+                            setTextColor(white)
+                            maxLines = 1
+                            ellipsize = android.text.TextUtils.TruncateAt.END
+                            setPadding(0, dp(4), 0, 0)
+                        }
+
+                        addView(
+                            label,
+                            LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                dp(20)
+                            )
+                        )
+
+                        isClickable = true
+                        isFocusable = true
+                        setOnClickListener {
+                            packageManager.getLaunchIntentForPackage(packageName)
+                                ?.let { startActivity(it) }
+                        }
+                    }
+
+                    row.addView(
+                        tile,
+                        LinearLayout.LayoutParams(0, dp(82), 1f)
+                    )
+                }
+
+                repeat(4 - appRow.size) {
+                    row.addView(
+                        View(this),
+                        LinearLayout.LayoutParams(0, dp(82), 1f)
+                    )
+                }
+
+                content.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(82)
+                    )
+                )
             }
-
-            addButton(content, "BLACKHOLE NOTES  →") {
-                showNotes()
-            }
-
-            addText(content, "QUICK NOTE", 10f, muted, true)
-            addText(
-                content,
-                "Aakhir kahena kya chahte ho.",
-                12f,
-                muted
-            )
-
-            addText(
-                content,
-                "HOSTLOKI  /  VERSION 1.1",
-                9f,
-                muted
-            )
         }
     }
 
     private fun showApps(initialFilter: String) {
         animateScreen {
-            addText(content, "APPLICATIONS", 22f, silver, true)
-            addText(content, "Your installed apps", 12f, muted)
+            addText(content, "APPLICATIONS", 23f, silver, true)
+            addText(content, "YOUR APP LIBRARY", 10f, muted)
 
-            addButton(content, "←  HOME") {
+            addButton(content, "← HOME") {
                 showHome()
             }
 
+            addButton(content, "HIDDEN APPS / SECURITY") {
+                LokiSecurity.openSecurityMenu(this) {
+                    showApps("")
+                }
+            }
+
             val search = EditText(this).apply {
-                hint = "Type an app name..."
+                hint = "Search applications..."
                 setHintTextColor(muted)
                 setTextColor(silver)
                 textSize = 14f
-                maxLines = 1
                 setSingleLine(true)
                 setPadding(dp(16), 0, dp(16), 0)
                 background = roundedBox(panel, 16f)
@@ -252,9 +579,10 @@ class MainActivity : Activity() {
             content.addView(
                 search,
                 LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(50)
                 ).apply {
-                    setMargins(0, dp(14), 0, dp(16))
+                    setMargins(0, dp(12), 0, dp(14))
                 }
             )
 
@@ -262,10 +590,6 @@ class MainActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
             }
             content.addView(grid)
-
-            fun updateApps(query: String) {
-                populateApps(grid, query)
-            }
 
             search.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(
@@ -275,7 +599,7 @@ class MainActivity : Activity() {
                 override fun onTextChanged(
                     s: CharSequence?, start: Int, before: Int, count: Int
                 ) {
-                    updateApps(s?.toString() ?: "")
+                    populateApps(grid, s?.toString() ?: "")
                 }
 
                 override fun afterTextChanged(s: Editable?) {}
@@ -283,19 +607,22 @@ class MainActivity : Activity() {
 
             search.setText(initialFilter)
             search.setSelection(search.text.length)
-            updateApps(initialFilter)
+            populateApps(grid, initialFilter)
         }
     }
 
     private fun populateApps(grid: LinearLayout, filter: String) {
         grid.removeAllViews()
 
-        val intent = Intent(Intent.ACTION_MAIN).apply {
+        val launchIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
 
-        val apps = packageManager.queryIntentActivities(intent, 0)
+        val apps = packageManager.queryIntentActivities(launchIntent, 0)
             .distinctBy { it.activityInfo.packageName }
+            .filter {
+                !LokiSecurity.isHidden(this, it.activityInfo.packageName)
+            }
             .filter {
                 it.loadLabel(packageManager).toString()
                     .contains(filter, ignoreCase = true)
@@ -305,38 +632,53 @@ class MainActivity : Activity() {
             }
 
         if (apps.isEmpty()) {
-            addText(grid, "No matching apps found.", 14f, muted)
+            addText(grid, "NO APPLICATIONS FOUND", 13f, muted)
             return
         }
 
-        apps.forEach { info ->
-            val appName = info.loadLabel(packageManager).toString()
-            val packageName = info.activityInfo.packageName
+        var row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
 
-            val item = TextView(this).apply {
-                text = appName
-                textSize = 15f
-                letterSpacing = 0.025f
-                gravity = Gravity.CENTER_VERTICAL
-                setTextColor(silver)
-                setPadding(dp(13), dp(15), dp(13), dp(15))
-                minHeight = dp(54)
+        apps.forEachIndexed { index, info ->
+            val packageName = info.activityInfo.packageName
+            val appName = info.loadLabel(packageManager).toString()
+
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(4), dp(12), dp(4), dp(12))
                 isClickable = true
                 isFocusable = true
+                background = roundedBox(panel, 16f)
+
+                val label = TextView(this@MainActivity).apply {
+                    text = appName
+                    textSize = 10f
+                    gravity = Gravity.CENTER
+                    setTextColor(silver)
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(dp(2), dp(7), dp(2), 0)
+                }
+
+                addView(
+                    label,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(34)
+                    )
+                )
+
                 setOnClickListener {
                     try {
-                        val launch = packageManager
-                            .getLaunchIntentForPackage(packageName)
-
-                        if (launch != null) {
-                            startActivity(launch)
-                        } else {
-                            Toast.makeText(
+                        packageManager.getLaunchIntentForPackage(packageName)
+                            ?.let { startActivity(it) }
+                            ?: Toast.makeText(
                                 this@MainActivity,
                                 "Unable to open app",
                                 Toast.LENGTH_SHORT
                             ).show()
-                        }
                     } catch (e: Exception) {
                         Toast.makeText(
                             this@MainActivity,
@@ -345,247 +687,66 @@ class MainActivity : Activity() {
                         ).show()
                     }
                 }
-            }
 
-            grid.addView(
-                item,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            )
-
-            val divider = View(this).apply {
-                setBackgroundColor(Color.rgb(48, 51, 58))
-            }
-
-            grid.addView(
-                divider,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(1)
-                ).apply {
-                    setMargins(dp(12), 0, dp(12), 0)
-                }
-            )
-
-            item.alpha = 0f
-            item.animate().alpha(1f).setDuration(180).start()
-        }
-    }
-
-
-    private fun showNotes() {
-        loadNotes()
-
-        animateScreen {
-            addText(content, "BLACKHOLE", 11f, muted, true)
-            addText(content, "MY NOTES", 25f, silver, true)
-            addText(content, "Your thoughts. Safely saved.", 12f, neon)
-
-            addButton(content, "← HOME") {
-                showHome()
-            }
-
-            addButton(content, "+ CREATE NEW NOTE") {
-                showNoteEditor(null)
-            }
-
-            val search = EditText(this).apply {
-                hint = "Search your notes..."
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 14f
-                setSingleLine(true)
-                setPadding(dp(15), 0, dp(15), 0)
-                background = roundedBox(panel, 16f)
-            }
-
-            content.addView(
-                search,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
-                ).apply {
-                    setMargins(0, dp(12), 0, dp(12))
-                }
-            )
-
-            val noteList = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-            }
-            content.addView(noteList)
-
-            fun renderNotes(query: String) {
-                noteList.removeAllViews()
-
-                val filtered = notes
-                    .filter {
-                        it.title.contains(query, true) ||
-                        it.body.contains(query, true)
+                setOnLongClickListener {
+                    LokiSecurity.requirePin(this@MainActivity) {
+                        LokiSecurity.hidePackage(
+                            this@MainActivity,
+                            packageName
+                        )
+                        Toast.makeText(
+                            this@MainActivity,
+                            "$appName hidden from BlackHole",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        populateApps(grid, filter)
                     }
-                    .sortedByDescending { it.updatedAt }
+                    true
+                }
+            }
 
-                if (filtered.isEmpty()) {
-                    addText(
-                        noteList,
-                        "No notes found. Create your first note!",
-                        13f,
-                        muted
+            row.addView(
+                cell,
+                LinearLayout.LayoutParams(0, dp(102), 1f).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                }
+            )
+
+            if (index % 4 == 3 || index == apps.lastIndex) {
+                while (row.childCount < 4) {
+                    row.addView(
+                        View(this),
+                        LinearLayout.LayoutParams(0, dp(102), 1f)
                     )
-                } else {
-                    filtered.forEach { note ->
-                        addButton(
-                            noteList,
-                            "${note.title}\n${note.body.take(65)}"
-                        ) {
-                            showNoteEditor(note.id)
-                        }
-                    }
-                }
-            }
-
-            search.addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(
-                    s: CharSequence?, start: Int, count: Int, after: Int
-                ) {}
-
-                override fun onTextChanged(
-                    s: CharSequence?, start: Int, before: Int, count: Int
-                ) {
-                    renderNotes(s?.toString() ?: "")
                 }
 
-                override fun afterTextChanged(s: Editable?) {}
-            })
-
-            renderNotes("")
-        }
-    }
-
-    private fun showNoteEditor(noteId: String?) {
-        val existing = notes.find { it.id == noteId }
-
-        animateScreen {
-            addText(
-                content,
-                if (existing == null) "CREATE NOTE" else "EDIT NOTE",
-                23f,
-                silver,
-                true
-            )
-
-            addButton(content, "← BACK TO NOTES") {
-                showNotes()
-            }
-
-            val titleInput = EditText(this).apply {
-                hint = "Note title"
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 17f
-                setSingleLine(true)
-                setPadding(dp(15), dp(10), dp(15), dp(10))
-                background = roundedBox(panel, 14f)
-                setText(existing?.title ?: "")
-            }
-
-            content.addView(
-                titleInput,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(55)
-                ).apply {
-                    setMargins(0, dp(15), 0, dp(10))
-                }
-            )
-
-            val bodyInput = EditText(this).apply {
-                hint = "Write something..."
-                setHintTextColor(muted)
-                setTextColor(silver)
-                textSize = 15f
-                gravity = Gravity.TOP
-                minLines = 8
-                inputType = InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                setPadding(dp(15), dp(15), dp(15), dp(15))
-                background = roundedBox(panel, 14f)
-                setText(existing?.body ?: "")
-            }
-
-            content.addView(
-                bodyInput,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(230)
-                ).apply {
-                    setMargins(0, dp(5), 0, dp(15))
-                }
-            )
-
-            addButton(content, "SAVE NOTE  ✓") {
-                val title = titleInput.text.toString().trim()
-                val body = bodyInput.text.toString().trim()
-
-                if (title.isEmpty() && body.isEmpty()) {
-                    Toast.makeText(
-                        this,
-                        "Write something first",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@addButton
-                }
-
-                val id = existing?.id
-                    ?: System.currentTimeMillis().toString()
-
-                val updated = NoteItem(
-                    id,
-                    title.ifEmpty { "Untitled" },
-                    body,
-                    System.currentTimeMillis()
+                grid.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(108)
+                    )
                 )
 
-                val index = notes.indexOfFirst { it.id == id }
-
-                if (index >= 0) {
-                    notes[index] = updated
-                } else {
-                    notes.add(updated)
-                }
-
-                saveNotes()
-
-                Toast.makeText(
-                    this,
-                    "Note saved",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                showNotes()
-            }
-
-            if (existing != null) {
-                addButton(content, "DELETE NOTE") {
-                    notes.removeAll { it.id == existing.id }
-                    saveNotes()
-
-                    Toast.makeText(
-                        this,
-                        "Note deleted",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    showNotes()
+                if (index != apps.lastIndex) {
+                    row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                    }
                 }
             }
         }
     }
 
     private fun showLoki() {
+        lokiScreenActive = true
+        lokiGreetingStarted = false
+        lokiAutoListenEnabled = false
+        initializeTextToSpeech()
         animateScreen {
-            addText(content, "LOKI", 32f, silver, true)
-            addText(content, "YOUR AI ASSISTANT", 10f, muted, true)
+            addText(content, "LOKI AI", 25f, silver, true)
+            addText(content, "YOUR PERSONAL ASSISTANT", 10f, neon, true)
+
+            addHolographicOrb(122)
 
             addButton(content, "<- BACK TO HOME") {
                 showHome()
@@ -593,20 +754,33 @@ class MainActivity : Activity() {
 
             lokiMessagesView = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(4), dp(8), dp(4), dp(8))
+                setPadding(dp(5), dp(8), dp(5), dp(8))
             }
 
-            val chatScroll = ScrollView(this).apply {
+            lokiChatScroll = ScrollView(this).apply {
                 isFillViewport = true
-                overScrollMode = View.OVER_SCROLL_NEVER
+                isSmoothScrollingEnabled = true
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                isVerticalScrollBarEnabled = true
                 addView(lokiMessagesView)
+
+                setOnTouchListener { view, event ->
+                    when (event.actionMasked) {
+                        android.view.MotionEvent.ACTION_DOWN ->
+                            view.parent.requestDisallowInterceptTouchEvent(true)
+                        android.view.MotionEvent.ACTION_UP,
+                        android.view.MotionEvent.ACTION_CANCEL ->
+                            view.parent.requestDisallowInterceptTouchEvent(false)
+                    }
+                    false
+                }
             }
 
             content.addView(
-                chatScroll,
+                lokiChatScroll,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(340)
+                    dp(300)
                 ).apply {
                     setMargins(0, dp(8), 0, dp(8))
                 }
@@ -615,7 +789,7 @@ class MainActivity : Activity() {
             if (lokiHistory.isEmpty()) {
                 addLokiBubble(
                     "model",
-                    "Namaste! Main Loki hoon. 😈\n\nBolo, aaj kya karna hai?"
+                    "Namaste! Main Loki hoon. ✦\n\nHindi, English ya Hinglish mein baat karo. Aaj kya karna hai?"
                 )
             } else {
                 lokiHistory.forEach {
@@ -647,7 +821,7 @@ class MainActivity : Activity() {
                 text = "SEND"
                 textSize = 12f
                 gravity = Gravity.CENTER
-                setTextColor(silver)
+                setTextColor(neon)
                 setPadding(dp(14), 0, dp(14), 0)
                 background = roundedBox(panel, 16f)
                 isClickable = true
@@ -667,16 +841,48 @@ class MainActivity : Activity() {
                 }
             )
 
+
+            val micButton = TextView(this).apply {
+                text = "MIC"
+                textSize = 11f
+                gravity = Gravity.CENTER
+                setTextColor(neon)
+                background = roundedBox(panel, 16f)
+                setPadding(dp(12), 0, dp(12), 0)
+                isClickable = true
+                setOnClickListener { startSpeechRecognition() }
+            }
+            inputRow.addView(
+                micButton,
+                LinearLayout.LayoutParams(dp(58), dp(54)).apply {
+                    setMargins(dp(7), 0, 0, 0)
+                }
+            )
+
+            val speakerButton = TextView(this).apply {
+                text = "VOICE"
+                textSize = 10f
+                gravity = Gravity.CENTER
+                setTextColor(neon)
+                background = roundedBox(panel, 16f)
+                setPadding(dp(9), 0, dp(9), 0)
+                isClickable = true
+                setOnClickListener { speakLatestLokiReply() }
+            }
+            inputRow.addView(
+                speakerButton,
+                LinearLayout.LayoutParams(dp(66), dp(54)).apply {
+                    setMargins(dp(7), 0, 0, 0)
+                }
+            )
+
             content.addView(inputRow)
 
-            addText(
-                content,
-                "GEMINI AI  /  CONNECTED THROUGH TERMUX",
-                9f,
-                muted
-            )
+            addText(content, "GEMINI AI  /  TERMUX BACKEND", 9f, muted)
+            content.post { startLokiVoiceSession() }
         }
     }
+
 
     private fun addLokiBubble(role: String, message: String) {
         val userMessage = role == "user"
@@ -687,11 +893,18 @@ class MainActivity : Activity() {
             setTextColor(silver)
             setPadding(dp(14), dp(11), dp(14), dp(11))
             maxWidth = dp(285)
-            background = roundedBox(
-                if (userMessage) Color.rgb(34, 37, 44)
-                else panel,
-                16f
-            )
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(16).toFloat()
+                setColor(
+                    if (userMessage) Color.rgb(15, 38, 48)
+                    else panel
+                )
+                setStroke(
+                    dp(1),
+                    if (userMessage) neon else Color.rgb(65, 75, 85)
+                )
+            }
         }
 
         lokiMessagesView.addView(
@@ -704,6 +917,10 @@ class MainActivity : Activity() {
                 setMargins(dp(3), dp(5), dp(3), dp(5))
             }
         )
+
+        lokiChatScroll.post {
+            lokiChatScroll.fullScroll(View.FOCUS_DOWN)
+        }
     }
 
     private fun sendLokiMessage() {
@@ -725,6 +942,7 @@ class MainActivity : Activity() {
             lokiBusy = false
             lokiHistory.add(LokiMessage("model", actionResult))
             addLokiBubble("model", actionResult)
+            speakLokiText(actionResult, listenAfter = lokiAutoListenEnabled && lokiScreenActive)
             lokiSendButton.isEnabled = true
             lokiSendButton.alpha = 1f
             return
@@ -752,6 +970,9 @@ class MainActivity : Activity() {
             if (reply != null) {
                 lokiHistory.add(LokiMessage("model", reply))
                 addLokiBubble("model", reply)
+                if (lokiScreenActive) {
+                    speakLokiText(reply, listenAfter = lokiAutoListenEnabled)
+                }
             } else {
                 addLokiBubble(
                     "model",
@@ -759,6 +980,200 @@ class MainActivity : Activity() {
                 )
             }
         }
+    }
+
+
+    private fun startLokiVoiceSession() {
+        if (!lokiScreenActive || lokiGreetingStarted) return
+
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                audioRequestCode
+            )
+            return
+        }
+
+        if (!ttsReady || textToSpeech == null) return
+
+        lokiGreetingStarted = true
+        lokiAutoListenEnabled = true
+        speakLokiText("Kya karna hai dost?", listenAfter = true)
+    }
+
+    private fun startSpeechRecognition() {
+        if (!lokiScreenActive) return
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                audioRequestCode
+            )
+            return
+        }
+
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Toast.makeText(this, "Speech recognition unavailable", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            speechRecognizer?.destroy()
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    Toast.makeText(this@MainActivity, "Listening...", Toast.LENGTH_SHORT).show()
+                }
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+
+                override fun onError(error: Int) {
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Voice recognition failed. Please try again.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                override fun onResults(results: Bundle?) {
+                    val spoken = results
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull()
+
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+
+                    if (!spoken.isNullOrBlank()) {
+                        lokiInput.setText(spoken)
+                        lokiInput.setSelection(lokiInput.text.length)
+                        sendLokiMessage()
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Could not understand. Try again.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+
+                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE,
+                    Locale.getDefault().toLanguageTag()
+                )
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            }
+            speechRecognizer?.startListening(intent)
+        } catch (e: Exception) {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            Toast.makeText(this, "Could not start microphone", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun speakLokiText(
+        text: String,
+        listenAfter: Boolean = false
+    ) {
+        if (text.isBlank()) return
+
+        if (!ttsReady || textToSpeech == null) {
+            Toast.makeText(this, "Voice engine is not ready yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        listenAfterSpeech = listenAfter && lokiScreenActive
+        textToSpeech?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "hostloki_reply"
+        )
+    }
+
+    private fun speakLatestLokiReply() {
+        val reply = lokiHistory.lastOrNull { it.role == "model" }?.text
+
+        if (reply.isNullOrBlank()) {
+            Toast.makeText(this, "Loki has no reply to speak yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        speakLokiText(reply)
+    }
+
+    private fun initializeTextToSpeech() {
+        if (textToSpeech != null) return
+
+        textToSpeech = TextToSpeech(this) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                textToSpeech?.language = Locale.getDefault()
+
+                textToSpeech?.setOnUtteranceProgressListener(
+                    object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {}
+
+                        override fun onDone(utteranceId: String?) {
+                            runOnUiThread {
+                                if (listenAfterSpeech) {
+                                    listenAfterSpeech = false
+                                    if (lokiScreenActive &&
+                                        lokiAutoListenEnabled &&
+                                        !lokiBusy) {
+                                        startSpeechRecognition()
+                                    }
+                                }
+                            }
+                        }
+
+                        override fun onError(utteranceId: String?) {
+                            runOnUiThread {
+                                listenAfterSpeech = false
+                            }
+                        }
+                    }
+                )
+
+                runOnUiThread {
+                    if (lokiScreenActive) {
+                        content.post { startLokiVoiceSession() }
+                    }
+                }
+            } else {
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Voice engine could not start",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        ttsReady = false
+        super.onDestroy()
     }
 
     private fun animateScreen(build: () -> Unit) {
