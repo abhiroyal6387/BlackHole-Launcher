@@ -161,7 +161,7 @@ class MainActivity : Activity() {
     private fun addHolographicOrb(size: Int = 184) {
         val stage = FrameLayout(this)
 
-        fun makeRing(diameter: Int, stroke: Int): TextView {
+        fun makeRing(stroke: Int): TextView {
             return TextView(this).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -172,8 +172,8 @@ class MainActivity : Activity() {
             }
         }
 
-        val outer = makeRing(154, 1)
-        val middle = makeRing(128, 2)
+        val outer = makeRing(1)
+        val middle = makeRing(2)
 
         val core = TextView(this).apply {
             text = "LOKI"
@@ -189,29 +189,38 @@ class MainActivity : Activity() {
             elevation = dp(12).toFloat()
         }
 
-        stage.addView(
-            outer,
-            FrameLayout.LayoutParams(dp(154), dp(154), Gravity.CENTER)
-        )
-        stage.addView(
-            middle,
-            FrameLayout.LayoutParams(dp(128), dp(128), Gravity.CENTER)
-        )
-        stage.addView(
-            core,
-            FrameLayout.LayoutParams(dp(94), dp(94), Gravity.CENTER)
-        )
+        stage.addView(outer, FrameLayout.LayoutParams(dp(154), dp(154), Gravity.CENTER))
+        stage.addView(middle, FrameLayout.LayoutParams(dp(128), dp(128), Gravity.CENTER))
+        stage.addView(core, FrameLayout.LayoutParams(dp(94), dp(94), Gravity.CENTER))
 
-        content.addView(
-            stage,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(size)
-            )
-        )
+        content.addView(stage, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(maxOf(size, 154))
+        ))
 
         stage.alpha = 0f
         stage.animate().alpha(1f).setDuration(650).start()
+
+        android.animation.ObjectAnimator.ofFloat(outer, View.ROTATION, 0f, 360f).apply {
+            duration = 14000
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            start()
+        }
+
+        android.animation.ObjectAnimator.ofFloat(middle, View.ROTATION, 360f, 0f).apply {
+            duration = 9500
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            start()
+        }
+
+        listOf(View.SCALE_X, View.SCALE_Y).forEach { property ->
+            android.animation.ObjectAnimator.ofFloat(core, property, 1f, 1.09f, 1f).apply {
+                duration = 1800
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                start()
+            }
+        }
     }
 
     private fun showHome() {
@@ -347,18 +356,31 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams(dp(42), dp(112))
             )
 
-            val message = TextView(this).apply {
-                text = "YOUR SPACE. YOUR APPS.\\n\\nEverything you need,\\nright at your fingertips."
-                textSize = 11f
+            val lokiButton = TextView(this).apply {
+                text = "✦  LOKI  ✦"
+                textSize = 21f
                 gravity = Gravity.CENTER
-                setTextColor(soft)
-                setLineSpacing(dp(3).toFloat(), 1f)
-                setPadding(dp(12), 0, dp(8), 0)
+                setTextColor(teal)
+                setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    setColor(Color.rgb(27, 29, 57))
+                    cornerRadius = dp(18).toFloat()
+                    setStroke(dp(2), teal)
+                }
+                elevation = dp(8).toFloat()
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Open Loki Assistant"
+                setOnClickListener {
+                    showLoki()
+                }
             }
 
             infoSection.addView(
-                message,
-                LinearLayout.LayoutParams(0, dp(112), 1f)
+                lokiButton,
+                LinearLayout.LayoutParams(0, dp(76), 1f).apply {
+                    setMargins(dp(12), 0, dp(8), 0)
+                }
             )
 
             val smallMark = TextView(this).apply {
