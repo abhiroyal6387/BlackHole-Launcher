@@ -31,6 +31,7 @@ import android.speech.SpeechRecognizer
 import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
 import android.widget.FrameLayout
 import android.text.InputType
@@ -42,6 +43,7 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
 
     private lateinit var lokiMessagesView: LinearLayout
+    private lateinit var lokiChatScroll: ScrollView
     private lateinit var lokiInput: EditText
     private lateinit var lokiSendButton: TextView
 
@@ -53,6 +55,10 @@ class MainActivity : Activity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
+    private var lokiScreenActive = false
+    private var lokiGreetingStarted = false
+    private var lokiAutoListenEnabled = false
+    private var listenAfterSpeech = false
 
     private val black = Color.rgb(5, 5, 7)
     private val panel = Color.rgb(19, 20, 24)
@@ -152,7 +158,7 @@ class MainActivity : Activity() {
         } else if (requestCode == audioRequestCode &&
             grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startSpeechRecognition()
+            startLokiVoiceSession()
         } else if (requestCode == audioRequestCode) {
             Toast.makeText(this, "Microphone permission is needed for voice input", Toast.LENGTH_SHORT).show()
         }
@@ -224,6 +230,15 @@ class MainActivity : Activity() {
     }
 
     private fun showHome() {
+        lokiScreenActive = false
+        lokiGreetingStarted = false
+        lokiAutoListenEnabled = false
+        listenAfterSpeech = false
+        speechRecognizer?.cancel()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        textToSpeech?.stop()
+
         animateScreen {
             val navy = Color.rgb(29, 28, 57)
             val teal = Color.rgb(0, 224, 190)
@@ -723,6 +738,9 @@ class MainActivity : Activity() {
     }
 
     private fun showLoki() {
+        lokiScreenActive = true
+        lokiGreetingStarted = false
+        lokiAutoListenEnabled = false
         initializeTextToSpeech()
         animateScreen {
             addText(content, "LOKI AI", 25f, silver, true)
@@ -739,14 +757,27 @@ class MainActivity : Activity() {
                 setPadding(dp(5), dp(8), dp(5), dp(8))
             }
 
-            val chatScroll = ScrollView(this).apply {
+            lokiChatScroll = ScrollView(this).apply {
                 isFillViewport = true
-                overScrollMode = View.OVER_SCROLL_NEVER
+                isSmoothScrollingEnabled = true
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                isVerticalScrollBarEnabled = true
                 addView(lokiMessagesView)
+
+                setOnTouchListener { view, event ->
+                    when (event.actionMasked) {
+                        android.view.MotionEvent.ACTION_DOWN ->
+                            view.parent.requestDisallowInterceptTouchEvent(true)
+                        android.view.MotionEvent.ACTION_UP,
+                        android.view.MotionEvent.ACTION_CANCEL ->
+                            view.parent.requestDisallowInterceptTouchEvent(false)
+                    }
+                    false
+                }
             }
 
             content.addView(
-                chatScroll,
+                lokiChatScroll,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     dp(300)
@@ -848,6 +879,7 @@ class MainActivity : Activity() {
             content.addView(inputRow)
 
             addText(content, "GEMINI AI  /  TERMUX BACKEND", 9f, muted)
+            content.post { startLokiVoiceSession() }
         }
     }
 
@@ -885,6 +917,10 @@ class MainActivity : Activity() {
                 setMargins(dp(3), dp(5), dp(3), dp(5))
             }
         )
+
+        lokiChatScroll.post {
+            lokiChatScroll.fullScroll(View.FOCUS_DOWN)
+        }
     }
 
     private fun sendLokiMessage() {
@@ -906,7 +942,7 @@ class MainActivity : Activity() {
             lokiBusy = false
             lokiHistory.add(LokiMessage("model", actionResult))
             addLokiBubble("model", actionResult)
-            speakLokiText(actionResult)
+            speakLokiText(actionResult, listenAfter = lokiAutoListenEnabled && lokiScreenActive)
             lokiSendButton.isEnabled = true
             lokiSendButton.alpha = 1f
             return
@@ -934,7 +970,9 @@ class MainActivity : Activity() {
             if (reply != null) {
                 lokiHistory.add(LokiMessage("model", reply))
                 addLokiBubble("model", reply)
-                speakLokiText(reply)
+                if (lokiScreenActive) {
+                    speakLokiText(reply, listenAfter = lokiAutoListenEnabled)
+                }
             } else {
                 addLokiBubble(
                     "model",
@@ -945,7 +983,27 @@ class MainActivity : Activity() {
     }
 
 
+    private fun startLokiVoiceSession() {
+        if (!lokiScreenActive || lokiGreetingStarted) return
+
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                audioRequestCode
+            )
+            return
+        }
+
+        if (!ttsReady || textToSpeech == null) return
+
+        lokiGreetingStarted = true
+        lokiAutoListenEnabled = true
+        speakLokiText("Kya karna hai dost?", listenAfter = true)
+    }
+
     private fun startSpeechRecognition() {
+        if (!lokiScreenActive) return
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED) {
             requestPermissions(
@@ -1027,7 +1085,10 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun speakLokiText(text: String) {
+    private fun speakLokiText(
+        text: String,
+        listenAfter: Boolean = false
+    ) {
         if (text.isBlank()) return
 
         if (!ttsReady || textToSpeech == null) {
@@ -1035,6 +1096,7 @@ class MainActivity : Activity() {
             return
         }
 
+        listenAfterSpeech = listenAfter && lokiScreenActive
         textToSpeech?.speak(
             text,
             TextToSpeech.QUEUE_FLUSH,
@@ -1056,10 +1118,50 @@ class MainActivity : Activity() {
 
     private fun initializeTextToSpeech() {
         if (textToSpeech != null) return
+
         textToSpeech = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
                 textToSpeech?.language = Locale.getDefault()
+
+                textToSpeech?.setOnUtteranceProgressListener(
+                    object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {}
+
+                        override fun onDone(utteranceId: String?) {
+                            runOnUiThread {
+                                if (listenAfterSpeech) {
+                                    listenAfterSpeech = false
+                                    if (lokiScreenActive &&
+                                        lokiAutoListenEnabled &&
+                                        !lokiBusy) {
+                                        startSpeechRecognition()
+                                    }
+                                }
+                            }
+                        }
+
+                        override fun onError(utteranceId: String?) {
+                            runOnUiThread {
+                                listenAfterSpeech = false
+                            }
+                        }
+                    }
+                )
+
+                runOnUiThread {
+                    if (lokiScreenActive) {
+                        content.post { startLokiVoiceSession() }
+                    }
+                }
+            } else {
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        "Voice engine could not start",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }
