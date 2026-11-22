@@ -27,6 +27,11 @@ import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
 import android.widget.Toast
+import android.speech.SpeechRecognizer
+import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.widget.FrameLayout
 import android.text.InputType
 import android.content.SharedPreferences
@@ -44,6 +49,10 @@ class MainActivity : Activity() {
     private var lokiBusy = false
     private var torchOn = false
     private val torchRequestCode = 7001
+    private val audioRequestCode = 7002
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
 
     private val black = Color.rgb(5, 5, 7)
     private val panel = Color.rgb(19, 20, 24)
@@ -140,6 +149,12 @@ class MainActivity : Activity() {
             toggleTorch()
         } else if (requestCode == torchRequestCode) {
             Toast.makeText(this, "Camera permission is needed for torch", Toast.LENGTH_SHORT).show()
+        } else if (requestCode == audioRequestCode &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startSpeechRecognition()
+        } else if (requestCode == audioRequestCode) {
+            Toast.makeText(this, "Microphone permission is needed for voice input", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -686,6 +701,7 @@ class MainActivity : Activity() {
     }
 
     private fun showLoki() {
+        initializeTextToSpeech()
         animateScreen {
             addText(content, "LOKI AI", 25f, silver, true)
             addText(content, "YOUR PERSONAL ASSISTANT", 10f, neon, true)
@@ -772,6 +788,41 @@ class MainActivity : Activity() {
                 }
             )
 
+
+            val micButton = TextView(this).apply {
+                text = "MIC"
+                textSize = 11f
+                gravity = Gravity.CENTER
+                setTextColor(neon)
+                background = roundedBox(panel, 16f)
+                setPadding(dp(12), 0, dp(12), 0)
+                isClickable = true
+                setOnClickListener { startSpeechRecognition() }
+            }
+            inputRow.addView(
+                micButton,
+                LinearLayout.LayoutParams(dp(58), dp(54)).apply {
+                    setMargins(dp(7), 0, 0, 0)
+                }
+            )
+
+            val speakerButton = TextView(this).apply {
+                text = "VOICE"
+                textSize = 10f
+                gravity = Gravity.CENTER
+                setTextColor(neon)
+                background = roundedBox(panel, 16f)
+                setPadding(dp(9), 0, dp(9), 0)
+                isClickable = true
+                setOnClickListener { speakLatestLokiReply() }
+            }
+            inputRow.addView(
+                speakerButton,
+                LinearLayout.LayoutParams(dp(66), dp(54)).apply {
+                    setMargins(dp(7), 0, 0, 0)
+                }
+            )
+
             content.addView(inputRow)
 
             addText(content, "GEMINI AI  /  TERMUX BACKEND", 9f, muted)
@@ -833,6 +884,7 @@ class MainActivity : Activity() {
             lokiBusy = false
             lokiHistory.add(LokiMessage("model", actionResult))
             addLokiBubble("model", actionResult)
+            speakLokiText(actionResult)
             lokiSendButton.isEnabled = true
             lokiSendButton.alpha = 1f
             return
@@ -860,6 +912,7 @@ class MainActivity : Activity() {
             if (reply != null) {
                 lokiHistory.add(LokiMessage("model", reply))
                 addLokiBubble("model", reply)
+                speakLokiText(reply)
             } else {
                 addLokiBubble(
                     "model",
@@ -867,6 +920,136 @@ class MainActivity : Activity() {
                 )
             }
         }
+    }
+
+
+    private fun startSpeechRecognition() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                audioRequestCode
+            )
+            return
+        }
+
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Toast.makeText(this, "Speech recognition unavailable", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            speechRecognizer?.destroy()
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    Toast.makeText(this@MainActivity, "Listening...", Toast.LENGTH_SHORT).show()
+                }
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+
+                override fun onError(error: Int) {
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Voice recognition failed. Please try again.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                override fun onResults(results: Bundle?) {
+                    val spoken = results
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull()
+
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+
+                    if (!spoken.isNullOrBlank()) {
+                        lokiInput.setText(spoken)
+                        lokiInput.setSelection(lokiInput.text.length)
+                        sendLokiMessage()
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Could not understand. Try again.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+
+                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE,
+                    Locale.getDefault().toLanguageTag()
+                )
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            }
+            speechRecognizer?.startListening(intent)
+        } catch (e: Exception) {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            Toast.makeText(this, "Could not start microphone", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun speakLokiText(text: String) {
+        if (text.isBlank()) return
+
+        if (!ttsReady || textToSpeech == null) {
+            Toast.makeText(this, "Voice engine is not ready yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        textToSpeech?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "hostloki_reply"
+        )
+    }
+
+    private fun speakLatestLokiReply() {
+        val reply = lokiHistory.lastOrNull { it.role == "model" }?.text
+
+        if (reply.isNullOrBlank()) {
+            Toast.makeText(this, "Loki has no reply to speak yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        speakLokiText(reply)
+    }
+
+    private fun initializeTextToSpeech() {
+        if (textToSpeech != null) return
+        textToSpeech = TextToSpeech(this) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                textToSpeech?.language = Locale.getDefault()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        ttsReady = false
+        super.onDestroy()
     }
 
     private fun animateScreen(build: () -> Unit) {
